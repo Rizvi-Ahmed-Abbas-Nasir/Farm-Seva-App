@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { View, TouchableOpacity, StyleSheet, Text, Animated } from "react-native";
+import React, { useState, useRef } from "react";
+import { View, TouchableOpacity, StyleSheet, Text, Animated, Easing } from "react-native";
 import {
   BarChart3,
   Activity,
@@ -39,6 +39,10 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
   const router = useRouter();
   const radius = 100;
 
+  // Animated values
+  const rotation = useRef(new Animated.Value(0)).current;
+  const animation = useRef(new Animated.Value(0)).current;
+
   // Buttons shown on expansion
   const extraButtons: ExtraButton[] = [
     { icon: Activity, route: "/(tabs)/health", label: "Health" },
@@ -48,6 +52,30 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
     { icon: Bell, route: "/(tabs)/alerts", label: "Alerts" },
   ];
 
+  const toggleExpand = () => {
+    setExpanded(!expanded);
+
+    Animated.parallel([
+      Animated.timing(rotation, {
+        toValue: expanded ? 0 : 1,
+        duration: 300,
+        easing: Easing.ease,
+        useNativeDriver: true,
+      }),
+      Animated.timing(animation, {
+        toValue: expanded ? 0 : 1,
+        duration: 400,
+        easing: Easing.out(Easing.circle),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const rotateInterpolate = rotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "45deg"], // rotate + button to an "X"
+  });
+
   return (
     <View style={styles.container}>
       {/* Left Tabs */}
@@ -55,10 +83,7 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
         style={styles.tab}
         onPress={() => navigate(router, "/(tabs)")}
       >
-        <BarChart3
-          size={26}
-          color={state.index === 0 ? "#10B981" : "#6B7280"}
-        />
+        <BarChart3 size={26} color={state.index === 0 ? "#10B981" : "#6B7280"} />
         <Text style={styles.label}>Dashboard</Text>
       </TouchableOpacity>
 
@@ -66,49 +91,60 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
         style={styles.tab}
         onPress={() => navigate(router, "/(tabs)/health")}
       >
-        <Activity
-          size={26}
-          color={state.index === 1 ? "#10B981" : "#6B7280"}
-        />
+        <Activity size={26} color={state.index === 1 ? "#10B981" : "#6B7280"} />
         <Text style={styles.label}>Health</Text>
       </TouchableOpacity>
 
       {/* Middle Expand Button */}
       <View style={styles.middleButtonWrapper}>
-        {expanded &&
-          extraButtons.map((btn, i) => {
-            const angleStep = 180 / (extraButtons.length - 1); // spread in semi-circle
-            const angle = i * angleStep;
-            const x = radius * Math.cos((angle * Math.PI) / 180);
-            const y = -radius * Math.sin((angle * Math.PI) / 180);
+        {extraButtons.map((btn, i) => {
+          const angleStep = 180 / (extraButtons.length - 1);
+          const angle = i * angleStep;
+          const x = radius * Math.cos((angle * Math.PI) / 180);
+          const y = -radius * Math.sin((angle * Math.PI) / 180);
 
-            return (
-              <Animated.View
-                key={btn.route}
-                style={[
-                  styles.expandedButton,
-                  { transform: [{ translateX: x }, { translateY: y }] },
-                ]}
+          return (
+            <Animated.View
+              key={btn.route}
+              style={[
+                styles.expandedButton,
+                {
+                  transform: [
+                    {
+                      translateX: animation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, x],
+                      }),
+                    },
+                    {
+                      translateY: animation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, y],
+                      }),
+                    },
+                  ],
+                  opacity: animation,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={() => {
+                  toggleExpand();
+                  navigate(router, btn.route);
+                }}
+                style={styles.circleButton}
               >
-                <TouchableOpacity
-                  onPress={() => {
-                    setExpanded(false);
-                    navigate(router, btn.route);
-                  }}
-                  style={styles.circleButton}
-                >
-                  <btn.icon size={22} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.extraLabel}>{btn.label}</Text>
-              </Animated.View>
-            );
-          })}
+                <btn.icon size={22} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.extraLabel}>{btn.label}</Text>
+            </Animated.View>
+          );
+        })}
 
-        <TouchableOpacity
-          style={styles.middleButton}
-          onPress={() => setExpanded(!expanded)}
-        >
-          <Wheat size={30} color="#fff" />
+        <TouchableOpacity style={styles.middleButton} onPress={toggleExpand}>
+          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+            <Wheat size={30} color="#fff" />
+          </Animated.View>
         </TouchableOpacity>
       </View>
 
@@ -117,10 +153,7 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
         style={styles.tab}
         onPress={() => navigate(router, "/(tabs)/tasks")}
       >
-        <CheckSquare
-          size={26}
-          color={state.index === 2 ? "#10B981" : "#6B7280"}
-        />
+        <CheckSquare size={26} color={state.index === 2 ? "#10B981" : "#6B7280"} />
         <Text style={styles.label}>Tasks</Text>
       </TouchableOpacity>
 
@@ -128,10 +161,7 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
         style={styles.tab}
         onPress={() => navigate(router, "/(tabs)/profile")}
       >
-        <User
-          size={26}
-          color={state.index === 3 ? "#10B981" : "#6B7280"}
-        />
+        <User size={26} color={state.index === 3 ? "#10B981" : "#6B7280"} />
         <Text style={styles.label}>Profile</Text>
       </TouchableOpacity>
     </View>
@@ -177,12 +207,12 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 5,
   },
-expandedButton: {
-  position: "absolute",
-  alignItems: "center",
-  zIndex: 1000,        
-  elevation: 10,      
-},
+  expandedButton: {
+    position: "absolute",
+    alignItems: "center",
+    zIndex: 1000,
+    elevation: 10,
+  },
   circleButton: {
     width: 50,
     height: 50,
