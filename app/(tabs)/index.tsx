@@ -9,7 +9,7 @@ export default function DashboardScreen() {
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Text style={styles.title}>Farm Dashboard</Text>
-        <Text style={styles.subtitle}>Good morning, John! Here's your farm overview</Text>
+        <Text style={styles.subtitle}>Good morning, Rizvi! Here's your farm overview</Text>
       </View>
 
       <View style={styles.metricsRow}>
@@ -48,7 +48,6 @@ export default function DashboardScreen() {
 
       <QuickStats />
 
-      {/* Simple Chart Placeholders */}
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>Mortality Trends (7 Days)</Text>
         <View style={styles.chartPlaceholder}>

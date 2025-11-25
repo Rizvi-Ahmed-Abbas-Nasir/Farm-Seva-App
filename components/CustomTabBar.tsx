@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { View, TouchableOpacity, StyleSheet, Text, Animated, Easing } from "react-native";
+import { View, TouchableOpacity, StyleSheet, Text, Animated, Easing, Image } from "react-native";
 import {
   BarChart3,
   Activity,
@@ -10,6 +10,7 @@ import {
   CheckSquare,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
+
 
 type TabRoute =
   | "/(tabs)"
@@ -39,11 +40,9 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
   const router = useRouter();
   const radius = 100;
 
-  // Animated values
   const rotation = useRef(new Animated.Value(0)).current;
   const animation = useRef(new Animated.Value(0)).current;
 
-  // Buttons shown on expansion
   const extraButtons: ExtraButton[] = [
     { icon: Activity, route: "/(tabs)/health", label: "Health" },
     { icon: Wheat, route: "/(tabs)/feed", label: "Feed" },
@@ -73,12 +72,11 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
 
   const rotateInterpolate = rotation.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "45deg"], // rotate + button to an "X"
+    outputRange: ["0deg", "45deg"], 
   });
 
   return (
     <View style={styles.container}>
-      {/* Left Tabs */}
       <TouchableOpacity
         style={styles.tab}
         onPress={() => navigate(router, "/(tabs)")}
@@ -95,60 +93,67 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
         <Text style={styles.label}>Health</Text>
       </TouchableOpacity>
 
-      {/* Middle Expand Button */}
-      <View style={styles.middleButtonWrapper}>
-        {extraButtons.map((btn, i) => {
-          const angleStep = 180 / (extraButtons.length - 1);
-          const angle = i * angleStep;
-          const x = radius * Math.cos((angle * Math.PI) / 180);
-          const y = -radius * Math.sin((angle * Math.PI) / 180);
 
-          return (
-            <Animated.View
-              key={btn.route}
-              style={[
-                styles.expandedButton,
-                {
-                  transform: [
-                    {
-                      translateX: animation.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, x],
-                      }),
-                    },
-                    {
-                      translateY: animation.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, y],
-                      }),
-                    },
-                  ],
-                  opacity: animation,
-                },
-              ]}
-            >
-              <TouchableOpacity
-                onPress={() => {
-                  toggleExpand();
-                  navigate(router, btn.route);
-                }}
-                style={styles.circleButton}
-              >
-                <btn.icon size={22} color="#fff" />
-              </TouchableOpacity>
-              <Text style={styles.extraLabel}>{btn.label}</Text>
-            </Animated.View>
-          );
-        })}
+<View style={styles.middleButtonWrapper}>
+  {extraButtons.map((btn, i) => {
+    const angleStep = 180 / (extraButtons.length - 1);
+    const angle = i * angleStep;
+    const x = radius * Math.cos((angle * Math.PI) / 180);
+    const y = -radius * Math.sin((angle * Math.PI) / 180);
 
-        <TouchableOpacity style={styles.middleButton} onPress={toggleExpand}>
-          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
-            <Wheat size={30} color="#fff" />
-          </Animated.View>
+    return (
+      <Animated.View
+        key={btn.route}
+        style={[
+          styles.expandedButton,
+          {
+            transform: [
+              {
+                translateX: animation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, x],
+                }),
+              },
+              {
+                translateY: animation.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, y],
+                }),
+              },
+            ],
+            opacity: animation,
+          },
+        ]}
+      >
+        <TouchableOpacity
+          onPress={() => {
+            toggleExpand();
+            navigate(router, btn.route);
+          }}
+          style={styles.circleButton}
+        >
+          <btn.icon size={22} color="#fff" />
         </TouchableOpacity>
-      </View>
+        <Text style={styles.extraLabel}>{btn.label}</Text>
+      </Animated.View>
+    );
+  })}
 
-      {/* Right Tabs */}
+
+
+<TouchableOpacity style={styles.middleButton} onPress={toggleExpand}>
+  <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+    <Image
+      source={require("../assets/images/logoFarm.png")} 
+      style={{ width: 50, height: 50 }} 
+      resizeMode="contain"
+    />
+  </Animated.View>
+</TouchableOpacity>
+
+</View>
+
+
       <TouchableOpacity
         style={styles.tab}
         onPress={() => navigate(router, "/(tabs)/tasks")}
