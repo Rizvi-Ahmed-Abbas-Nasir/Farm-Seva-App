@@ -1,22 +1,22 @@
 
-# 🌾 Farm Seva App
+# Farm Seva App
 
 Farm Seva is a **digital farm management app** designed to help pig and poultry farmers implement **biosecurity measures** and improve productivity.  
 It integrates **Supabase backend services**, a **React Native (Expo) frontend**, and a small **Node.js/TypeScript server** for custom APIs.
 
 ---
 
-## 🚀 Features
-- 📱 **Cross-platform mobile app** (Android & iOS via Expo).  
-- 🔐 **Authentication & Authorization** using Supabase.  
-- 📊 **Farm data management** – record animal details, feed, vaccinations, and health logs.  
-- 🛡 **Biosecurity monitoring** – track compliance with farm safety standards.  
-- ☁ **Cloud backend** with Supabase (database, storage, and API).  
-- ⚡ **Real-time sync** between app and backend.  
+## Features
+- **Cross-platform mobile app** (Android & iOS via Expo).  
+- **Authentication & Authorization** using Supabase.  
+- **Farm data management** – record animal details, feed, vaccinations, and health logs.  
+- **Biosecurity monitoring** – track compliance with farm safety standards.  
+- **Cloud backend** with Supabase (database, storage, and API).  
+- **Real-time sync** between app and backend.  
 
 ---
 
-## 🛠 Tech Stack
+## Tech Stack
 - **Frontend:** [React Native](https://reactnative.dev/) (Expo)  
 - **Backend:** [Node.js](https://nodejs.org/) + [TypeScript](https://www.typescriptlang.org/)  
 - **Database & Auth:** [Supabase](https://supabase.com/)  
@@ -42,7 +42,7 @@ Farm-Seva-App/
 
 ---
 
-## ⚙️ Installation & Setup
+## Installation & Setup
 
 ### 1️⃣ Clone the repo
 ```bash
@@ -90,7 +90,7 @@ npx ts-node server.ts
 
 ---
 
-## 📜 Scripts
+## Scripts
 
 From `package.json`, you can run:
 
@@ -115,7 +115,7 @@ Contributions are welcome!
 
 ---
 
-## 📄 License
+## 📄License
 
 This project is licensed under the **MIT License**.
 You are free to use, modify, and distribute it.
