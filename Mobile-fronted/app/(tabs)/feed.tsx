@@ -51,7 +51,6 @@ export default function FeedScreen() {
         </View>
       </View>
 
-      {/* Stock Levels */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Package size={20} color="#111827" />
