@@ -82,7 +82,6 @@ export default function ProfileScreen() {
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.profileCard}>
 
-        {/* Profile Image */}
         <View style={styles.avatarContainer}>
           {profile.image ? (
             <Image source={{ uri: profile.image }} style={styles.avatar} />

@@ -1,5 +1,13 @@
-import React, { useState, useRef } from "react";
-import { View, TouchableOpacity, StyleSheet, Text, Animated, Easing, Image } from "react-native";
+import React, { useState, useRef,useEffect } from "react";
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Text,
+  Animated,
+  Easing,
+  Image,
+} from "react-native";
 import {
   BarChart3,
   Activity,
@@ -8,9 +16,10 @@ import {
   Wheat,
   Thermometer,
   CheckSquare,
+  Menu,
+  MoreVertical
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
-
 
 type TabRoute =
   | "/(tabs)"
@@ -19,7 +28,8 @@ type TabRoute =
   | "/(tabs)/profile"
   | "/(tabs)/feed"
   | "/(tabs)/environment"
-  | "/(tabs)/tasks";
+  | "/(tabs)/tasks"
+  | "/(tabs)/options";   
 
 const navigate = (router: ReturnType<typeof useRouter>, path: TabRoute) => {
   router.replace({ pathname: path } as any);
@@ -39,10 +49,11 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
   const [expanded, setExpanded] = useState(false);
   const router = useRouter();
   const radius = 100;
+const animation = useRef(new Animated.Value(0)).current;
 
-  const rotation = useRef(new Animated.Value(0)).current;
-  const animation = useRef(new Animated.Value(0)).current;
+const rotation = useRef(new Animated.Value(0)).current;
 
+  
   const extraButtons: ExtraButton[] = [
     { icon: Activity, route: "/(tabs)/health", label: "Health" },
     { icon: Wheat, route: "/(tabs)/feed", label: "Feed" },
@@ -51,29 +62,33 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
     { icon: Bell, route: "/(tabs)/alerts", label: "Alerts" },
   ];
 
-  const toggleExpand = () => {
-    setExpanded(!expanded);
+ const toggleExpand = () => {
+  const newExpanded = !expanded;
+  setExpanded(newExpanded);
+  Animated.parallel([
+    Animated.timing(rotation, {
+      toValue: newExpanded ? 1 : 0, 
+      duration: 400, 
+      easing: Easing.linear,
+      useNativeDriver: true,
+    }),
+    Animated.timing(animation, {
+      toValue: newExpanded ? 1 : 0,
+      duration: 400,
+      easing: Easing.out(Easing.circle),
+      useNativeDriver: true,
+    }),
+  ]).start();
+};
 
-    Animated.parallel([
-      Animated.timing(rotation, {
-        toValue: expanded ? 0 : 1,
-        duration: 300,
-        easing: Easing.ease,
-        useNativeDriver: true,
-      }),
-      Animated.timing(animation, {
-        toValue: expanded ? 0 : 1,
-        duration: 400,
-        easing: Easing.out(Easing.circle),
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
 
   const rotateInterpolate = rotation.interpolate({
     inputRange: [0, 1],
-    outputRange: ["0deg", "45deg"], 
+    outputRange: ["0deg", "360deg"],
   });
+
+
+  
 
   return (
     <View style={styles.container}>
@@ -93,74 +108,77 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
         <Text style={styles.label}>Health</Text>
       </TouchableOpacity>
 
+      <View style={styles.middleButtonWrapper}>
+        {extraButtons.map((btn, i) => {
+          const angleStep = 180 / (extraButtons.length - 1);
+          const angle = i * angleStep;
 
-<View style={styles.middleButtonWrapper}>
-  {extraButtons.map((btn, i) => {
-    const angleStep = 180 / (extraButtons.length - 1);
-    const angle = i * angleStep;
-    const x = radius * Math.cos((angle * Math.PI) / 180);
-    const y = -radius * Math.sin((angle * Math.PI) / 180);
+          const x = radius * Math.cos((angle * Math.PI) / 180);
+          const y = -radius * Math.sin((angle * Math.PI) / 180);
 
-    return (
-      <Animated.View
-        key={btn.route}
-        style={[
-          styles.expandedButton,
-          {
-            transform: [
-              {
-                translateX: animation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, x],
-                }),
-              },
-              {
-                translateY: animation.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0, y],
-                }),
-              },
-            ],
-            opacity: animation,
-          },
-        ]}
-      >
-        <TouchableOpacity
-          onPress={() => {
-            toggleExpand();
-            navigate(router, btn.route);
-          }}
-          style={styles.circleButton}
-        >
-          <btn.icon size={22} color="#fff" />
+          return (
+            <Animated.View
+              key={btn.route}
+              pointerEvents={expanded ? "auto" : "none"}
+              style={[
+                styles.expandedButton,
+                {
+                  transform: [
+                    {
+                      translateX: animation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, x],
+                      }),
+                    },
+                    {
+                      translateY: animation.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, y],
+                      }),
+                    },
+                  ],
+                  opacity: animation,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                onPress={() => {
+                  toggleExpand();
+                  navigate(router, btn.route);
+                }}
+                style={styles.circleButton}
+              >
+                <btn.icon size={22} color="#fff" />
+              </TouchableOpacity>
+              <Text style={styles.extraLabel}>{btn.label}</Text>
+            </Animated.View>
+          );
+        })}
+
+      
+
+        <TouchableOpacity style={styles.middleButton} onPress={toggleExpand}>
+          <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
+  <Image
+    source={require("../assets/images/logoFarm.png")}
+    style={{ width: 50, height: 50 }}
+    resizeMode="contain"
+  />
+</Animated.View>
+
         </TouchableOpacity>
-        <Text style={styles.extraLabel}>{btn.label}</Text>
-      </Animated.View>
-    );
-  })}
+      </View>
 
-
-
-<TouchableOpacity style={styles.middleButton} onPress={toggleExpand}>
-  <Animated.View style={{ transform: [{ rotate: rotateInterpolate }] }}>
-    <Image
-      source={require("../assets/images/logoFarm.png")} 
-      style={{ width: 50, height: 50 }} 
-      resizeMode="contain"
-    />
-  </Animated.View>
+<TouchableOpacity
+  style={styles.tab}
+onPress={() => navigate(router, "/(tabs)/options")}
+>
+  <Menu size={26} color={state.index === 4 ? "#10B981" : "#6B7280"} />
+  <Text style={styles.label}>Options</Text>
 </TouchableOpacity>
 
-</View>
 
 
-      <TouchableOpacity
-        style={styles.tab}
-        onPress={() => navigate(router, "/(tabs)/tasks")}
-      >
-        <CheckSquare size={26} color={state.index === 2 ? "#10B981" : "#6B7280"} />
-        <Text style={styles.label}>Tasks</Text>
-      </TouchableOpacity>
 
       <TouchableOpacity
         style={styles.tab}
@@ -170,7 +188,12 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
         <Text style={styles.label}>Profile</Text>
       </TouchableOpacity>
     </View>
+
+
+    
   );
+
+  
 }
 
 const styles = StyleSheet.create({
@@ -193,11 +216,13 @@ const styles = StyleSheet.create({
     marginTop: 2,
     color: "#374151",
   },
+
   middleButtonWrapper: {
     position: "relative",
     alignItems: "center",
     justifyContent: "center",
   },
+
   middleButton: {
     width: 60,
     height: 60,
@@ -211,13 +236,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowRadius: 4,
     elevation: 5,
+    zIndex: 9999, // IMPORTANT: always on top
   },
+
   expandedButton: {
     position: "absolute",
     alignItems: "center",
     zIndex: 1000,
     elevation: 10,
   },
+
   circleButton: {
     width: 50,
     height: 50,
@@ -226,10 +254,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+
   extraLabel: {
     marginTop: 5,
     fontSize: 10,
     color: "#374151",
     textAlign: "center",
   },
+
+
 });
