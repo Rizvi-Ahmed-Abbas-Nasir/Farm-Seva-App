@@ -8,7 +8,13 @@ import { Picker } from '@react-native-picker/picker';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const API_URL = 'http://localhost:5000';
+
+// this is my local IP address, replace it with your machine's local IP
+// const API_URL = "http://192.168.0.167:5000";
+
+
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
 
 const indianStates = [
   "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh",
@@ -50,7 +56,7 @@ export default function AuthScreen() {
         ? { email, password }
         : { email, password, fullName, phone, state, location, role };
 
-      const response = await axios.post(`${API_URL}${endpoint}`, payload);
+      const response = await axios.post(`${API_URL}/auth${endpoint}`, payload);
 
       if (isLogin) {
         await AsyncStorage.setItem("userToken", response.data.token);
@@ -97,7 +103,6 @@ export default function AuthScreen() {
                 onChangeText={setPhone}
               />
 
-              {/* State Picker */}
               <View style={styles.dropdown}>
                 <Picker
                   selectedValue={state}
@@ -117,12 +122,11 @@ export default function AuthScreen() {
                 onChangeText={setLocation}
               />
 
-              {/* Role Picker */}
               <View style={styles.dropdown}>
                 <Picker selectedValue={role} onValueChange={setRole}>
-                  <Picker.Item label="Farmer" value="Farmer" />
-                  <Picker.Item label="Admin" value="Admin" />
-                  <Picker.Item label="Retail" value="Retail" />
+                  <Picker.Item label="Farmer" value="farmer" />
+                  <Picker.Item label="Admin" value="admin" />
+                  <Picker.Item label="Retail" value="retail" />
                 </Picker>
               </View>
             </>

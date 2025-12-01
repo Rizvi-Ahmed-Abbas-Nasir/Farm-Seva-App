@@ -1,18 +1,28 @@
-import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert, Platform, ScrollView, Image } from 'react-native';
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { router } from 'expo-router';
-import { User, Trophy, LogOut } from 'lucide-react-native';
+import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { User, LogOut } from 'lucide-react-native';
 
-type Profile = {
+//  const API_URL = "http://192.168.0.167:5000"; // Android Emulator
+// const API_URL = "http://localhost:5000"; // iOS Simulator
+// const API_URL = "http://YOUR_PC_IP:5000"; // Real Device
+const API_URL = process.env.EXPO_PUBLIC_API_URL;
+
+type FarmerProfile = {
   id: string;
-  full_name: string;
+  fullName: string;
   email: string;
-  score: number;
+  phone: string;
+  state: string;
+  location: string;
+  role: string;
+  image?: string;
 };
 
 export default function ProfileScreen() {
-  const [profile, setProfile] = useState<Profile | null>(null);
+  const [profile, setProfile] = useState<FarmerProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,36 +31,29 @@ export default function ProfileScreen() {
 
   const fetchProfile = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        router.replace('/auth');
+      const token = await AsyncStorage.getItem("userToken");
+
+      if (!token) {
+        router.replace("/auth");
         return;
       }
 
-      const { data, error } = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', user.id)
-        .single();
+      const response = await axios.get(`${API_URL}/profile`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-      if (error) throw error;
-      setProfile(data);
+      setProfile(response.data);
     } catch (error) {
-      console.error('Error fetching profile:', error);
+      console.error("Error fetching profile:", error);
+      Alert.alert("Error", "Unable to load profile.");
     } finally {
       setLoading(false);
     }
   };
 
   const handleLogout = async () => {
-    try {
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      router.replace('/auth');
-    } catch (error: any) {
-      Alert.alert('Error', error.message);
-    }
+    await AsyncStorage.removeItem("userToken");
+    router.replace("/auth");
   };
 
   if (loading) {
@@ -68,7 +71,6 @@ export default function ProfileScreen() {
         <TouchableOpacity
           style={styles.button}
           onPress={() => router.replace('/auth')}
-          activeOpacity={0.7}
         >
           <Text style={styles.buttonText}>Go to Login</Text>
         </TouchableOpacity>
@@ -79,26 +81,36 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer}>
       <View style={styles.profileCard}>
+
+        {/* Profile Image */}
         <View style={styles.avatarContainer}>
-          <User size={64} color="#6366f1" />
+          {profile.image ? (
+            <Image source={{ uri: profile.image }} style={styles.avatar} />
+          ) : (
+            <User size={64} color="#2e7d32" />
+          )}
         </View>
-        <Text style={styles.name}>{profile.full_name}</Text>
+
+        <Text style={styles.name}>{profile.fullName}</Text>
         <Text style={styles.email}>{profile.email}</Text>
-        
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Trophy size={28} color="#6366f1" />
-            <Text style={styles.statValue}>{profile.score}</Text>
-            <Text style={styles.statLabel}>Points</Text>
-          </View>
+
+        {/* Details */}
+        <View style={styles.infoBox}>
+          <Text style={styles.infoLabel}>Phone</Text>
+          <Text style={styles.infoValue}>{profile.phone}</Text>
+
+          <Text style={styles.infoLabel}>State</Text>
+          <Text style={styles.infoValue}>{profile.state}</Text>
+
+          <Text style={styles.infoLabel}>City / Location</Text>
+          <Text style={styles.infoValue}>{profile.location}</Text>
+
+          <Text style={styles.infoLabel}>Role</Text>
+          <Text style={styles.infoValue}>{profile.role}</Text>
         </View>
       </View>
 
-      <TouchableOpacity
-        style={styles.logoutButton}
-        onPress={handleLogout}
-        activeOpacity={0.7}
-      >
+      <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <LogOut size={20} color="white" style={styles.logoutIcon} />
         <Text style={styles.logoutText}>Logout</Text>
       </TouchableOpacity>
@@ -107,147 +119,52 @@ export default function ProfileScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f3f4f6',
-  },
-  contentContainer: {
-    padding: 20,
-  },
-  loadingText: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 16,
-    color: '#6b7280',
-  },
-  messageText: {
-    textAlign: 'center',
-    marginTop: 20,
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 20,
-  },
+  container: { flex: 1, backgroundColor: '#e8f5e9' },
+  contentContainer: { padding: 20 },
+  loadingText: { textAlign: 'center', marginTop: 20 },
+  messageText: { textAlign: 'center', marginTop: 20 },
   profileCard: {
     backgroundColor: 'white',
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
   },
   avatarContainer: {
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#f3f4f6',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 3,
-      },
-      android: {
-        elevation: 3,
-      },
-    }),
+    backgroundColor: "#c8e6c9",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
   },
-  name: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginBottom: 8,
-  },
-  email: {
-    fontSize: 16,
-    color: '#6b7280',
-    marginBottom: 24,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: '100%',
-    marginTop: 16,
-    backgroundColor: '#f9fafb',
-    borderRadius: 16,
+  avatar: { width: 120, height: 120, borderRadius: 60 },
+  name: { fontSize: 26, fontWeight: 'bold', marginBottom: 6 },
+  email: { fontSize: 16, color: '#666', marginBottom: 20 },
+  infoBox: {
+    width: "100%",
+    backgroundColor: "#f1f8e9",
     padding: 16,
+    borderRadius: 12,
   },
-  statItem: {
-    alignItems: 'center',
-    padding: 16,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#1f2937',
-    marginTop: 8,
-  },
-  statLabel: {
-    fontSize: 14,
-    color: '#6b7280',
-    marginTop: 4,
-  },
+  infoLabel: { color: "#2e7d32", fontWeight: "bold", marginTop: 6 },
+  infoValue: { fontSize: 16, color: "#333" },
   logoutButton: {
-    backgroundColor: '#ef4444',
-    padding: 16,
+    backgroundColor: "#dd2c00",
+    padding: 14,
     borderRadius: 12,
-    alignItems: 'center',
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
     marginTop: 20,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#ef4444',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
   },
-  logoutIcon: {
-    marginRight: 8,
-  },
-  logoutText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  logoutIcon: { marginRight: 8 },
+  logoutText: { color: "white", fontWeight: "bold" },
   button: {
-    backgroundColor: '#6366f1',
-    padding: 16,
+    backgroundColor: "#2e7d32",
+    padding: 14,
     borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#6366f1',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-      },
-      android: {
-        elevation: 4,
-      },
-    }),
+    alignItems: "center",
   },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
+  buttonText: { color: "white", fontWeight: "bold" },
 });
