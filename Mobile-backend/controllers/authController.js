@@ -4,15 +4,13 @@ import { supabase } from "../config/supabaseClient.js";
 
 export const signup = async (req, res) => {
   try {
-    const { fullName, email, password, phoneNumber, state, location, role } = req.body;
+    const { fullName, email, password, phone, state, location, role } = req.body;
 
-    // Validate role
     const validRoles = ["farmer", "admin", "retail"];
     if (!validRoles.includes(role)) {
       return res.status(400).json({ error: "Invalid role selected" });
     }
 
-    // Check if user exists
     const { data: existingUser } = await supabase
       .from("users")
       .select()
@@ -26,7 +24,7 @@ export const signup = async (req, res) => {
     const { data, error } = await supabase
       .from("users")
       .insert([
-        { fullName, email, password: hashed, phoneNumber, state, location, role }
+        { fullName, email, password: hashed, phone, state, location, role }
       ])
       .select()
       .single();

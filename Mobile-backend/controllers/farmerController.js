@@ -1,6 +1,5 @@
 import { supabase } from "../config/supabaseClient.js";
 
-// Get all farmers
 export const getFarmers = async (req, res) => {
   try {
     const { data, error } = await supabase
