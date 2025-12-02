@@ -1,17 +1,19 @@
 import { View, Text, StyleSheet, ScrollView } from 'react-native';
 import { MetricCard } from '@/components/MetricCard';
 import { QuickStats } from '@/components/QuickStats';
-import { ChartBar as BarChart3, TrendingUp, Users, Activity } from 'lucide-react-native';
+import { LineChart, BarChart } from "react-native-gifted-charts";
 
 export default function DashboardScreen() {
-
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Farm Dashboard</Text>
         <Text style={styles.subtitle}>Good morning, Rizvi! Here's your farm overview</Text>
       </View>
 
+      {/* Metric Cards Row 1 */}
       <View style={styles.metricsRow}>
         <MetricCard
           title="Total Animals"
@@ -29,6 +31,7 @@ export default function DashboardScreen() {
         />
       </View>
 
+      {/* Metric Cards Row 2 */}
       <View style={styles.metricsRow}>
         <MetricCard
           title="Feed Consumed"
@@ -46,23 +49,64 @@ export default function DashboardScreen() {
         />
       </View>
 
+      {/* Quick Stats */}
       <QuickStats />
 
-      <View style={styles.chartSection}>
+      {/* Line Chart */}
+      <View style={[styles.chartSection, { alignItems: "center" }]}>
         <Text style={styles.sectionTitle}>Mortality Trends (7 Days)</Text>
-        <View style={styles.chartPlaceholder}>
-          <TrendingUp size={48} color="#10B981" />
-          <Text style={styles.placeholderText}>Chart will load here</Text>
-        </View>
+
+       <LineChart
+  data={[
+    { value: 2, label: "Mon" },
+    { value: 3, label: "Tue" },
+    { value: 1, label: "Wed" },
+    { value: 4, label: "Thu" },
+    { value: 2, label: "Fri" },
+    { value: 3, label: "Sat" },
+    { value: 2, label: "Sun" },
+  ]}
+  curved
+  thickness={4}
+  color="#10B981"
+  
+  /* 👇 ENABLE Y-AXIS TEXT */
+  yAxisTextStyle={{ color: "#6B7280", fontSize: 12 }}
+  
+  hideRules={false}
+  showVerticalLines={false}
+  spacing={50}
+  initialSpacing={30}
+  dataPointsColor="#065F46"
+  dataPointsRadius={5}
+  startFillColor="#10B981"
+  endFillColor="#10B98105"
+  startOpacity={0.25}
+  endOpacity={0.01}
+  areaChart
+  xAxisColor="#E5E7EB"
+  xAxisThickness={1}
+  xAxisLabelTextStyle={{ color: "#6B7280", fontSize: 12 }}
+/>
+
       </View>
 
+      {/* Bar Chart */}
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>Feed Distribution</Text>
-        <View style={styles.chartPlaceholder}>
-          <BarChart3 size={48} color="#3B82F6" />
-          <Text style={styles.placeholderText}>Chart will load here</Text>
-        </View>
+
+        <BarChart
+          barWidth={40}
+          barBorderRadius={8}
+          frontColor="#3B82F6"
+          data={[
+            { value: 40, label: "Morning" },
+            { value: 30, label: "Noon" },
+            { value: 50, label: "Evening" },
+          ]}
+        />
       </View>
+
     </ScrollView>
   );
 }
@@ -87,7 +131,6 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 16,
-    fontWeight: 'normal',
     color: '#6B7280',
   },
   metricsRow: {
@@ -114,20 +157,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
     marginBottom: 16,
-  },
-  chartPlaceholder: {
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    borderWidth: 2,
-    borderColor: '#E5E7EB',
-    borderStyle: 'dashed',
-  },
-  placeholderText: {
-    fontSize: 16,
-    color: '#6B7280',
-    marginTop: 8,
   },
 });
