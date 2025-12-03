@@ -9,7 +9,7 @@ import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 
-// this is my local IP address, replace it with your machine's local IP
+// this is my local IP address, replace it with your machine's local IP my pc
 // const API_URL = "http://192.168.0.167:5000";
 
 

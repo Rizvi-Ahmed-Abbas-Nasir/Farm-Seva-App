@@ -4,32 +4,53 @@ import {
   TrendingDown, 
   TrendingUp, 
   Wheat, 
-  ShieldAlert 
+  ShieldAlert,
+  FileText,
+  Cloud
 } from 'lucide-react-native';
 
 interface MetricCardProps {
   title: string;
   value: string;
   change: string;
+  bgColor?: string;
+  iconColor?: string;
+  textColor?: string;
   changeType: 'positive' | 'negative' | 'neutral';
   icon: string;
 }
 
-export function MetricCard({ title, value, change, changeType, icon }: MetricCardProps) {
+export function MetricCard({ 
+  title, 
+  value, 
+  change, 
+  changeType, 
+  icon,
+  bgColor = '#FFFFFF',
+  iconColor,
+  textColor = '#111827'
+}: MetricCardProps) {
   const getIcon = () => {
+    const color = iconColor || '#6366F1';
+    const size = 26;
+    
     switch (icon) {
       case 'users':
-        return <Users size={24} color="#10B981" />;
+        return <Users size={size} color={color} strokeWidth={2.5} />;
       case 'trending-down':
-        return <TrendingDown size={24} color="#10B981" />;
+        return <TrendingDown size={size} color={color} strokeWidth={2.5} />;
       case 'trending-up':
-        return <TrendingUp size={24} color="#EF4444" />;
+        return <TrendingUp size={size} color={color} strokeWidth={2.5} />;
       case 'wheat':
-        return <Wheat size={24} color="#F59E0B" />;
+        return <Wheat size={size} color={color} strokeWidth={2.5} />;
       case 'shield-alert':
-        return <ShieldAlert size={24} color="#EF4444" />;
+        return <ShieldAlert size={size} color={color} strokeWidth={2.5} />;
+      case 'file-text':
+        return <FileText size={size} color={color} strokeWidth={2.5} />;
+      case 'cloud':
+        return <Cloud size={size} color={color} strokeWidth={2.5} />;
       default:
-        return <Users size={24} color="#10B981" />;
+        return <Users size={size} color={color} strokeWidth={2.5} />;
     }
   };
 
@@ -44,17 +65,45 @@ export function MetricCard({ title, value, change, changeType, icon }: MetricCar
     }
   };
 
+  const getChangeIcon = () => {
+    if (changeType === 'positive') {
+      return <TrendingUp size={13} color="#10B981" strokeWidth={2.5} />;
+    } else if (changeType === 'negative') {
+      return <TrendingDown size={13} color="#EF4444" strokeWidth={2.5} />;
+    }
+    return null;
+  };
+
   return (
-    <View style={styles.card}>
-      <View style={styles.iconContainer}>
+    <View style={[styles.card, { backgroundColor: bgColor }]}>
+      {/* Icon container */}
+      <View style={[styles.iconContainer, { 
+        backgroundColor: iconColor ? `${iconColor}25` : '#EEF2FF' 
+      }]}>
         {getIcon()}
       </View>
+
+      {/* Content */}
       <View style={styles.content}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.value}>{value}</Text>
-        <Text style={[styles.change, { color: getChangeColor() }]}>
-          {change}
+        <Text style={[styles.title, { 
+          color: textColor === '#111827' ? '#6B7280' : textColor 
+        }]}>
+          {title}
         </Text>
+        <Text style={[styles.value, { color: textColor }]}>
+          {value}
+        </Text>
+        
+        {/* Change indicator */}
+        <View style={styles.changeContainer}>
+          {getChangeIcon()}
+          <Text style={[styles.change, { 
+            color: getChangeColor(),
+            marginLeft: getChangeIcon() ? 4 : 0 
+          }]}>
+            {change}
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -63,37 +112,45 @@ export function MetricCard({ title, value, change, changeType, icon }: MetricCar
 const styles = StyleSheet.create({
   card: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 18,
+    padding: 18,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
   },
   iconContainer: {
-    marginBottom: 12,
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
   },
   content: {
     flex: 1,
   },
   title: {
-    fontSize: 14,
-    fontWeight: 'normal',
-    color: '#6B7280',
-    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
   },
   value: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#111827',
-    marginBottom: 4,
+    fontSize: 28,
+    fontWeight: '700',
+    letterSpacing: -0.5,
+    marginBottom: 6,
+  },
+  changeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
   },
   change: {
     fontSize: 12,
-    fontWeight: 'normal',
+    fontWeight: '600',
   },
 });
