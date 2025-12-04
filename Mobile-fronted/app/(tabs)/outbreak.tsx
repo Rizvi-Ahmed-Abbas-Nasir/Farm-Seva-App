@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, ScrollView, FlatList, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { 
+  View, Text, TextInput, ScrollView, FlatList,
+  TouchableOpacity, StyleSheet, Modal 
+} from 'react-native';
 import Papa from 'papaparse';
 import { Picker } from '@react-native-picker/picker';
 
@@ -16,38 +19,6 @@ export default function DiseaseAlertsDashboard() {
   const SHEET_URL =
     "https://docs.google.com/spreadsheets/d/1GYaSR_EL4c-oKNyiTyx1XOv2aI-ON8WmGJ0G491j35E/export?format=csv";
 
-
-    type DiseaseAlert = {
-  Type: string;
-  DiseaseName: string;
-  Locations: string;
-  'Disease Overview'?: string;
-  'Possible Preventive Measure'?: string;
-  MonthYear?: string;
-  UpdatedDate?: string;
-  UpdatedOn?: string;
-  OBTID?: string;
-  [key: string]: any; // in case CSV has extra columns
-};
-
-Papa.parse<DiseaseAlert>(SHEET_URL, {
-  download: true,
-  header: true,
-  complete: (result) => {
-    const data = result.data
-      .filter(row => row.Type && row.DiseaseName)
-      .map((row, index) => ({ id: index + 1, ...row }));
-    setAlerts(data);
-    setFilteredAlerts(data);
-    setLoading(false);
-  },
-  error: (error) => {
-    console.error(error);
-    setError('Failed to fetch data from Google Sheets');
-    setLoading(false);
-  },
-});
-
   useEffect(() => {
     fetchSheetData();
   }, []);
@@ -59,25 +30,24 @@ Papa.parse<DiseaseAlert>(SHEET_URL, {
   const fetchSheetData = async () => {
     try {
       setLoading(true);
-     Papa.parse<DiseaseAlert>(SHEET_URL, {
-  download: true,
-  header: true,
-  complete: (result) => {
-    const data = result.data
-      .filter(row => row.Type && row.DiseaseName)
-      .map((row, index) => ({ id: index + 1, ...row }));
-    setAlerts(data);
-    setFilteredAlerts(data);
-    setLoading(false);
-  },
-  error: (error) => {
-    console.error(error);
-    setError('Failed to fetch data from Google Sheets');
-    setLoading(false);
-  },
-});
+      Papa.parse(SHEET_URL, {
+        download: true,
+        header: true,
+        complete: (result) => {
+          const data = result.data
+            .filter((row: any) => row.Type && row.DiseaseName)
+            .map((row: any, index: number) => ({ id: index + 1, ...row }));
+
+          setAlerts(data);
+          setFilteredAlerts(data);
+          setLoading(false);
+        },
+        error: () => {
+          setError('Failed to fetch data from Google Sheets');
+          setLoading(false);
+        },
+      });
     } catch (err) {
-      console.error(err);
       setError('Failed to fetch data');
       setLoading(false);
     }
@@ -85,6 +55,7 @@ Papa.parse<DiseaseAlert>(SHEET_URL, {
 
   const filterAlerts = () => {
     let filtered = alerts;
+
     if (searchTerm) {
       filtered = filtered.filter(alert =>
         alert.DiseaseName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -92,9 +63,13 @@ Papa.parse<DiseaseAlert>(SHEET_URL, {
         alert['Disease Overview']?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
+
     if (selectedType !== 'all') {
-      filtered = filtered.filter(alert => alert.Type?.toLowerCase() === selectedType.toLowerCase());
+      filtered = filtered.filter(
+        alert => alert.Type?.toLowerCase() === selectedType.toLowerCase()
+      );
     }
+
     setFilteredAlerts(filtered);
   };
 
@@ -108,15 +83,15 @@ Papa.parse<DiseaseAlert>(SHEET_URL, {
     setIsModalOpen(false);
   };
 
-  const alertTypes = ['all', ...Array.from(new Set(alerts.map(alert => alert.Type).filter(Boolean)))];
+  const alertTypes = ['all', ...Array.from(new Set(alerts.map(a => a.Type)))];
 
-  const getSeverityColor = (type: string | undefined) => {
-    switch(type?.toLowerCase()) {
-      case 'outbreak': return '#FEE2E2';
-      case 'alert': return '#FFEDD5';
-      case 'warning': return '#FEF3C7';
-      case 'info': return '#DBEAFE';
-      default: return '#E5E7EB';
+  const getBadgeColor = (type: string | undefined) => {
+    switch (type?.toLowerCase()) {
+      case 'outbreak': return '#fee2e2';
+      case 'alert': return '#ffedd5';
+      case 'warning': return '#fef3c7';
+      case 'info': return '#dbeafe';
+      default: return '#e5e7eb';
     }
   };
 
@@ -141,43 +116,64 @@ Papa.parse<DiseaseAlert>(SHEET_URL, {
 
   return (
     <ScrollView style={styles.container}>
+      
       {/* Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>🏥 Disease Alerts & Prevention</Text>
-        <Text style={styles.subtitle}>
-          Real-time disease outbreak information and preventive measures for farmers
-        </Text>
-        <Text style={styles.stats}>Last Updated: {new Date().toLocaleDateString()}</Text>
+        <Text style={styles.screenTitle}>Disease Alerts</Text>
+        <Text style={styles.subText}>Live outbreaks & preventive updates</Text>
         <Text style={styles.stats}>{alerts.length} Active Alerts</Text>
       </View>
 
-      {/* Filters */}
-      <View style={styles.filters}>
-        <TextInput
-          placeholder="Search by disease or location..."
-          value={searchTerm}
-          onChangeText={setSearchTerm}
-          style={styles.input}
-        />
+      {/* Search Bar */}
+      <TextInput
+        placeholder="Search disease or location..."
+        value={searchTerm}
+        onChangeText={setSearchTerm}
+        style={styles.searchBar}
+      />
+
+      {/* Type Dropdown */}
+      <View style={styles.dropdownWrapper}>
         <Picker
           selectedValue={selectedType}
-          onValueChange={(itemValue) => setSelectedType(itemValue)}
-          style={styles.picker}
+          onValueChange={(v) => setSelectedType(v)}
+          style={styles.dropdown}
         >
           {alertTypes.map(type => (
-            <Picker.Item key={type} label={type === 'all' ? 'All Types' : type} value={type} />
+            <Picker.Item
+              key={type}
+              label={type === 'all' ? "All Types" : type}
+              value={type}
+            />
           ))}
         </Picker>
       </View>
 
-      {/* Alerts List */}
+      {/* Disease Cards */}
       <FlatList
         data={filteredAlerts}
         keyExtractor={(item) => item.id.toString()}
         renderItem={({ item }) => (
-          <TouchableOpacity style={[styles.card, { backgroundColor: getSeverityColor(item.Type) }]} onPress={() => openAlertDetails(item)}>
-            <Text style={styles.cardTitle}>{item.DiseaseName}</Text>
-            <Text style={styles.cardSubtitle}>Affected Areas: {item.Locations}</Text>
+          <TouchableOpacity
+            style={styles.card}
+            onPress={() => openAlertDetails(item)}
+          >
+            <View style={styles.cardHeader}>
+              <Text style={styles.cardTitle}>{item.DiseaseName}</Text>
+
+              <View
+                style={[
+                  styles.badge,
+                  { backgroundColor: getBadgeColor(item.Type) },
+                ]}
+              >
+                <Text style={styles.badgeText}>{item.Type}</Text>
+              </View>
+            </View>
+
+            <Text style={styles.locationText}>
+              📍 {item.Locations || "Multiple regions"}
+            </Text>
           </TouchableOpacity>
         )}
       />
@@ -189,10 +185,29 @@ Papa.parse<DiseaseAlert>(SHEET_URL, {
             {selectedAlert && (
               <>
                 <Text style={styles.modalTitle}>{selectedAlert.DiseaseName}</Text>
-                <Text style={styles.modalSubtitle}>Type: {selectedAlert.Type}</Text>
-                <Text style={styles.modalSubtitle}>Locations: {selectedAlert.Locations}</Text>
-                <Text style={styles.modalText}>Overview: {selectedAlert['Disease Overview'] || 'N/A'}</Text>
-                <Text style={styles.modalText}>Preventive Measures: {selectedAlert['Possible Preventive Measure'] || 'N/A'}</Text>
+
+                <View
+                  style={[
+                    styles.badge,
+                    { backgroundColor: getBadgeColor(selectedAlert.Type) },
+                  ]}
+                >
+                  <Text style={styles.badgeText}>{selectedAlert.Type}</Text>
+                </View>
+
+                <Text style={styles.modalSub}>Location(s):</Text>
+                <Text style={styles.modalText}>{selectedAlert.Locations}</Text>
+
+                <Text style={styles.modalSub}>Overview:</Text>
+                <Text style={styles.modalText}>
+                  {selectedAlert['Disease Overview'] || 'N/A'}
+                </Text>
+
+                <Text style={styles.modalSub}>Preventive Measures:</Text>
+                <Text style={styles.modalText}>
+                  {selectedAlert['Possible Preventive Measure'] || 'N/A'}
+                </Text>
+
                 <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
                   <Text style={{ color: '#fff' }}>Close</Text>
                 </TouchableOpacity>
@@ -201,28 +216,102 @@ Papa.parse<DiseaseAlert>(SHEET_URL, {
           </View>
         </View>
       </Modal>
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: '#ECFDF5' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  retryButton: { backgroundColor: '#059669', padding: 12, borderRadius: 8 },
-  header: { marginBottom: 16 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 4, color: '#065F46' },
-  subtitle: { fontSize: 14, marginBottom: 4, color: '#4B5563' },
-  stats: { fontSize: 12, color: '#065F46' },
-  filters: { marginBottom: 16 },
-  input: { backgroundColor: '#fff', padding: 12, borderRadius: 8, marginBottom: 8 },
-  picker: { backgroundColor: '#fff', borderRadius: 8 },
-  card: { padding: 16, borderRadius: 12, marginBottom: 12 },
-  cardTitle: { fontWeight: 'bold', fontSize: 16, marginBottom: 4 },
-  cardSubtitle: { fontSize: 14, color: '#374151' },
-  modalBackground: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
-  modalContainer: { backgroundColor: '#fff', borderRadius: 16, padding: 20, width: '90%' },
-  modalTitle: { fontSize: 20, fontWeight: 'bold', marginBottom: 8 },
-  modalSubtitle: { fontSize: 16, marginBottom: 4 },
-  modalText: { fontSize: 14, marginBottom: 8 },
-  closeButton: { backgroundColor: '#059669', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 12 },
+  container: { flex: 1, padding: 16, backgroundColor: "#F9FAFB" },
+
+  header: { marginBottom: 18 },
+  screenTitle: { fontSize: 26, fontWeight: "700", color: "#111827" },
+  subText: { fontSize: 13, color: "#6B7280", marginTop: 3 },
+  stats: { fontSize: 12, color: "#10B981", marginTop: 4 },
+
+  searchBar: {
+    backgroundColor: "#fff",
+    padding: 14,
+    borderRadius: 12,
+    borderColor: "#E5E7EB",
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+
+  dropdownWrapper: {
+    backgroundColor: "#fff",
+    borderWidth: 1,
+    borderColor: "#E5E7EB",
+    borderRadius: 12,
+    marginBottom: 18,
+  },
+
+  dropdown: { width: "100%" },
+
+  card: {
+    backgroundColor: "#fff",
+    padding: 18,
+    borderRadius: 14,
+    borderColor: "#E5E7EB",
+    borderWidth: 1,
+    marginBottom: 14,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+
+  cardHeader: { flexDirection: "row", justifyContent: "space-between" },
+  cardTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
+
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#374151",
+    textTransform: "capitalize",
+  },
+
+  locationText: {
+    marginTop: 8,
+    fontSize: 14,
+    color: "#6B7280",
+  },
+
+  modalBackground: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  modalContainer: {
+    backgroundColor: "#fff",
+    width: "90%",
+    borderRadius: 18,
+    padding: 18,
+  },
+
+  modalTitle: { fontSize: 22, fontWeight: "700", marginBottom: 8 },
+  modalSub: { marginTop: 10, fontWeight: "700", fontSize: 14 },
+  modalText: { fontSize: 14, color: "#374151", marginTop: 4 },
+
+  closeButton: {
+    backgroundColor: "#10B981",
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 16,
+    alignItems: "center",
+  },
+
+  center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  retryButton: {
+    backgroundColor: "#10B981",
+    padding: 12,
+    borderRadius: 8,
+  },
 });

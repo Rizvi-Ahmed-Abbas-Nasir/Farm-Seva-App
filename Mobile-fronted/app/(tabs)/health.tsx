@@ -3,40 +3,43 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { Syringe, Thermometer, Heart, AlertCircle, Calendar, ChevronRight, TrendingUp } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
+import { useRouter } from 'expo-router';
+
 export default function HealthScreen() {
+  const router = useRouter();
   const upcomingVaccinations = [
     { animal: 'Pigs - Pen 3', vaccine: 'FMD Booster', date: 'Today', urgent: true, icon: '🐷' },
     { animal: 'Broilers - House 2', vaccine: 'Newcastle Disease', date: 'Tomorrow', urgent: true, icon: '🐔' },
     { animal: 'Layers - Cage 5', vaccine: 'Infectious Bronchitis', date: 'Dec 28', urgent: false, icon: '🐓' },
   ];
 
- const healthAlerts: HealthAlert[] = [
-  { type: 'High Temperature', location: 'Pig Pen 2', severity: 'high', time: '2 hours ago', icon: '🌡️' },
-  { type: 'Respiratory Symptoms', location: 'Broiler House 1', severity: 'medium', time: '5 hours ago', icon: '😷' },
-  { type: 'Egg Drop', location: 'Layer Cage 3', severity: 'low', time: '1 day ago', icon: '🥚' },
-];
+  const healthAlerts: HealthAlert[] = [
+    { type: 'High Temperature', location: 'Pig Pen 2', severity: 'high', time: '2 hours ago', icon: '🌡️' },
+    { type: 'Respiratory Symptoms', location: 'Broiler House 1', severity: 'medium', time: '5 hours ago', icon: '😷' },
+    { type: 'Egg Drop', location: 'Layer Cage 3', severity: 'low', time: '1 day ago', icon: '🥚' },
+  ];
 
-type Severity = 'high' | 'medium' | 'low';
-
-
-type HealthAlert = {
-  icon: string;
-  type: string;
-  location: string;
-  time: string;
-  severity: Severity;  
-};
+  type Severity = 'high' | 'medium' | 'low';
 
 
+  type HealthAlert = {
+    icon: string;
+    type: string;
+    location: string;
+    time: string;
+    severity: Severity;
+  };
 
-const getSeverityColors = (severity: Severity) => {
-  switch (severity) {
-    case 'high': return { bg: '#FEE2E2', border: '#FCA5A5', text: '#DC2626' };
-    case 'medium': return { bg: '#FEF3C7', border: '#FCD34D', text: '#D97706' };
-    case 'low': return { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' };
-    default: return { bg: '#F3F4F6', border: '#D1D5DB', text: '#6B7280' };
-  }
-};
+
+
+  const getSeverityColors = (severity: Severity) => {
+    switch (severity) {
+      case 'high': return { bg: '#FEE2E2', border: '#FCA5A5', text: '#DC2626' };
+      case 'medium': return { bg: '#FEF3C7', border: '#FCD34D', text: '#D97706' };
+      case 'low': return { bg: '#D1FAE5', border: '#6EE7B7', text: '#059669' };
+      default: return { bg: '#F3F4F6', border: '#D1D5DB', text: '#6B7280' };
+    }
+  };
 
   return (
     <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
@@ -112,14 +115,14 @@ const getSeverityColors = (severity: Severity) => {
             </View>
             <Text style={styles.sectionTitle}>Vaccination Schedule</Text>
           </View>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => router.push('/vaccination')}>
             <Text style={styles.seeAllText}>See All</Text>
           </TouchableOpacity>
         </View>
 
         {upcomingVaccinations.map((vaccination, index) => (
-          <TouchableOpacity 
-            key={index} 
+          <TouchableOpacity
+            key={index}
             style={[
               styles.vaccinationItem,
               index === upcomingVaccinations.length - 1 && styles.lastItem
@@ -166,16 +169,18 @@ const getSeverityColors = (severity: Severity) => {
             </View>
             <Text style={styles.sectionTitle}>Health Alerts</Text>
           </View>
-          <View style={styles.alertCount}>
-            <Text style={styles.alertCountText}>{healthAlerts.length}</Text>
-          </View>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/alerts')}>
+            <View style={styles.alertCount}>
+              <Text style={styles.alertCountText}>{healthAlerts.length}</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
         {healthAlerts.map((alert, index) => {
           const colors = getSeverityColors(alert.severity);
           return (
-            <TouchableOpacity 
-              key={index} 
+            <TouchableOpacity
+              key={index}
               style={[
                 styles.alertItem,
                 index === healthAlerts.length - 1 && styles.lastItem
@@ -205,7 +210,10 @@ const getSeverityColors = (severity: Severity) => {
 
       {/* Quick Actions */}
       <View style={styles.quickActions}>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => router.push('/addVaccination')}
+        >
           <LinearGradient
             colors={['#3B82F6', '#2563EB']}
             style={styles.actionGradient}
@@ -214,7 +222,10 @@ const getSeverityColors = (severity: Severity) => {
             <Text style={styles.actionText}>Add Vaccination</Text>
           </LinearGradient>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => router.push('/riskForm')}
+        >
           <LinearGradient
             colors={['#10B981', '#059669']}
             style={styles.actionGradient}
