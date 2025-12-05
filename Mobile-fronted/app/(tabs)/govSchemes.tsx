@@ -18,7 +18,7 @@ import {
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WebView } from 'react-native-webview';
-
+import Papa from 'papaparse';
 // Expo Icons
 import { 
   MaterialIcons,
@@ -94,8 +94,7 @@ const AwardIcon = (props: any) => <FontAwesome5 name="award" {...props} />;
 const TargetIcon = (props: any) => <Ionicons name="target" {...props} />;
 
 export default function GovtScheme() {
-  const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWgAD3JxCvVeO0K4n9ncqVeyw/export?format=csv";
-
+const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWgAD3JxCvVeO0K4n9ncqVeyw/export?format=csv&gid=0";
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [filteredSchemes, setFilteredSchemes] = useState<Scheme[]>([]);
   const [selectedAnimalFilter, setSelectedAnimalFilter] = useState("All");
@@ -124,35 +123,66 @@ export default function GovtScheme() {
   };
 
   const fetchSchemes = async () => {
-    try {
-      const response = await fetch(SHEET_URL);
-      const csvData = await response.text();
-      
-      // Parse CSV data manually (simple approach)
-    // Split full CSV
-const lines = csvData.split('\n');
-
-const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-
-// Data rows
-const data = lines.slice(1).map(line => {
-  const values = line.split(',').map(v => v.trim().replace(/"/g, ''));
-  const obj: Scheme = {};
-  headers.forEach((header, index) => {
-    obj[header] = values[index] || '';
-  });
-  return obj;
-}).filter(item => item["Govt Scheme Name"]);
-
-     
-
-      setSchemes(data);
-      setFilteredSchemes(data);
-    } catch (error) {
-      console.error("Error fetching schemes:", error);
-      Alert.alert("Error", "Failed to load schemes. Please check your connection.");
-    }
-  };
+  try {
+    const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWgAD3JxCvVeO0K4n9ncqVeyw/export?format=csv&gid=0";
+    
+    console.log("Fetching from:", SHEET_URL);
+    const response = await fetch(SHEET_URL);
+    const csvText = await response.text();
+    
+    return new Promise<void>((resolve, reject) => {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          console.log("PapaParse results:", {
+            dataCount: results.data.length,
+            errors: results.errors,
+            meta: results.meta
+          });
+          
+          const schemes = results.data
+            .filter((row: any) => row["Govt Scheme Name"] && row["Govt Scheme Name"].trim() !== '')
+            .map((row: any) => ({
+              "Govt Scheme Name": row["Govt Scheme Name"] || '',
+              "Scheme Description": row["Scheme Description"] || '',
+              "Benefits Provided": row["Benefits Provided"] || '',
+              "Eligibility Requirements": row["Eligibility Requirements"] || '',
+              "Required Documents": row["Required Documents"] || '',
+              "How To Apply": row["How To Apply"] || '',
+              "Ministry / Department Name": row["Ministry / Department Name"] || '',
+              "Website Link": row["Website Link"] || '',
+              "PDF Link": row["PDF Link"] || '',
+              "AI Overview": row["AI Overview"] || ''
+            }));
+          
+          // Remove duplicates
+          const uniqueSchemes = Array.from(
+            new Map(schemes.map(scheme => [scheme["Govt Scheme Name"], scheme])).values()
+          );
+          
+          console.log(`Parsed ${uniqueSchemes.length} unique schemes (from ${results.data.length} rows)`);
+          
+          uniqueSchemes.forEach((scheme, index) => {
+            console.log(`${index + 1}. ${scheme["Govt Scheme Name"]}`);
+          });
+          
+          setSchemes(uniqueSchemes);
+          setFilteredSchemes(uniqueSchemes);
+          resolve();
+        },
+        error: (error: any) => {
+          console.error("PapaParse error:", error);
+          reject(error);
+        }
+      });
+    });
+    
+  } catch (error: any) {
+    console.error("Fetch error:", error);
+    Alert.alert("Error", `Failed to fetch schemes: ${error.message}`);
+  }
+};
 
   const loadLocalData = async () => {
     try {

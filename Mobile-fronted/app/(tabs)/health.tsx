@@ -1,36 +1,354 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { Syringe, Thermometer, Heart, AlertCircle, Calendar, ChevronRight, TrendingUp } from 'lucide-react-native';
+import React, { useState, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StyleSheet, 
+  ScrollView, 
+  TouchableOpacity, 
+  ActivityIndicator,
+  RefreshControl 
+} from 'react-native';
+import { 
+  Syringe, 
+  Thermometer, 
+  Heart, 
+  AlertCircle, 
+  Calendar, 
+  ChevronRight, 
+  TrendingUp,
+  Bell
+} from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-
+import * as Notifications from 'expo-notifications';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
+
+type Severity = 'high' | 'medium' | 'low';
+
+interface HealthAlert {
+  icon: string;
+  type: string;
+  location: string;
+  time: string;
+  severity: Severity;
+}
+
+interface Vaccination {
+  id: number;
+  user_id: string;
+  species: string;
+  vaccine_name: string;
+  scheduled_date: string;
+  administration_method: string;
+  notes: string;
+  created_at: string;
+}
+
+interface FormattedVaccination {
+  id: number;
+  animal: string;
+  vaccine: string;
+  date: string;
+  urgent: boolean;
+  icon: string;
+  scheduled_date: string;
+  species: string;
+  notes: string;
+}
+
+interface HealthStats {
+  healthyPercentage: number;
+  avgTemperature: number;
+  vaccinatedPercentage: number;
+}
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
+
+// API Configuration
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function HealthScreen() {
   const router = useRouter();
-  const upcomingVaccinations = [
-    { animal: 'Pigs - Pen 3', vaccine: 'FMD Booster', date: 'Today', urgent: true, icon: '🐷' },
-    { animal: 'Broilers - House 2', vaccine: 'Newcastle Disease', date: 'Tomorrow', urgent: true, icon: '🐔' },
-    { animal: 'Layers - Cage 5', vaccine: 'Infectious Bronchitis', date: 'Dec 28', urgent: false, icon: '🐓' },
-  ];
+  const [loading, setLoading] = useState<boolean>(true);
+  const [refreshing, setRefreshing] = useState<boolean>(false);
+  const [upcomingVaccinations, setUpcomingVaccinations] = useState<FormattedVaccination[]>([]);
+  const [healthStats, setHealthStats] = useState<HealthStats>({
+    healthyPercentage: 98.9,
+    avgTemperature: 37.2,
+    vaccinatedPercentage: 85
+  });
 
+  // Mock health alerts
   const healthAlerts: HealthAlert[] = [
     { type: 'High Temperature', location: 'Pig Pen 2', severity: 'high', time: '2 hours ago', icon: '🌡️' },
     { type: 'Respiratory Symptoms', location: 'Broiler House 1', severity: 'medium', time: '5 hours ago', icon: '😷' },
     { type: 'Egg Drop', location: 'Layer Cage 3', severity: 'low', time: '1 day ago', icon: '🥚' },
   ];
 
-  type Severity = 'high' | 'medium' | 'low';
+  // Fetch vaccinations from backend - FIXED VERSION
+  const fetchVaccinations = async (): Promise<void> => {
+    try {
+      console.log('🔍 Starting to fetch vaccinations...');
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        console.log('❌ No token found');
+        setLoading(false);
+        return;
+      }
 
+      console.log('📡 Making API call to:', `${API_URL}/vaccinations`);
+      const response = await fetch(`${API_URL}/vaccinations`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
 
-  type HealthAlert = {
-    icon: string;
-    type: string;
-    location: string;
-    time: string;
-    severity: Severity;
+      console.log('📊 Response status:', response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error:', errorText);
+        throw new Error(`Failed to fetch: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ API Response:', JSON.stringify(result, null, 2));
+      
+      if (result.success && result.data && Array.isArray(result.data)) {
+        console.log(`📋 Found ${result.data.length} total vaccinations`);
+        
+        // Filter upcoming vaccinations (next 7 days) - FIXED DATE LOGIC
+        const now = new Date();
+        const nextWeek = new Date();
+        nextWeek.setDate(now.getDate() + 7);
+        
+        // Reset time to beginning of day for proper comparison
+        now.setHours(0, 0, 0, 0);
+        nextWeek.setHours(23, 59, 59, 999);
+        
+        const upcoming = result.data.filter((vaccination: Vaccination) => {
+          try {
+            // Parse the date string (remove timezone issues)
+            const dateStr = vaccination.scheduled_date.split('T')[0]; // Get only date part
+            const vaccineDate = new Date(dateStr);
+            vaccineDate.setHours(0, 0, 0, 0);
+            
+            console.log(`📅 Checking vaccination ${vaccination.id}:`, {
+              scheduled_date: vaccination.scheduled_date,
+              parsed_date: vaccineDate,
+              now: now,
+              nextWeek: nextWeek,
+              is_upcoming: vaccineDate >= now && vaccineDate <= nextWeek
+            });
+            
+            return vaccineDate >= now && vaccineDate <= nextWeek;
+          } catch (error) {
+            console.error('❌ Error parsing date:', vaccination.scheduled_date, error);
+            return false;
+          }
+        });
+
+        console.log(`✅ Found ${upcoming.length} upcoming vaccinations`);
+        
+        // Sort by date and format for display
+        const formattedVaccinations: FormattedVaccination[] = upcoming
+          .sort((a: Vaccination, b: Vaccination) => 
+            new Date(a.scheduled_date).getTime() - new Date(b.scheduled_date).getTime()
+          )
+          .map((vaccination: Vaccination) => {
+            const dateStr = vaccination.scheduled_date.split('T')[0];
+            const vaccineDate = new Date(dateStr);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            // Format date for display
+            let dateDisplay: string;
+            if (vaccineDate.getTime() === today.getTime()) {
+              dateDisplay = 'Today';
+            } else if (vaccineDate.getTime() === tomorrow.getTime()) {
+              dateDisplay = 'Tomorrow';
+            } else {
+              dateDisplay = vaccineDate.toLocaleDateString('en-US', { 
+                month: 'short', 
+                day: 'numeric' 
+              });
+            }
+
+            // Check if urgent (today or tomorrow)
+            const isUrgent = vaccineDate.getTime() === today.getTime() || 
+                           vaccineDate.getTime() === tomorrow.getTime();
+
+            // Get emoji based on species
+            const getEmoji = (species: string): string => {
+              const emojis: Record<string, string> = {
+                'poultry': '🐔',
+                'cattle': '🐄',
+                'swine': '🐷',
+                'sheep': '🐑',
+                'goat': '🐐',
+                'chicken': '🐔',
+                'cow': '🐄',
+                'pig': '🐷',
+                'default': '🐾'
+              };
+              return emojis[species.toLowerCase()] || emojis.default;
+            };
+
+            return {
+              id: vaccination.id,
+              animal: `${vaccination.species.charAt(0).toUpperCase() + vaccination.species.slice(1)}`,
+              vaccine: vaccination.vaccine_name,
+              date: dateDisplay,
+              urgent: isUrgent,
+              icon: getEmoji(vaccination.species),
+              scheduled_date: vaccination.scheduled_date,
+              species: vaccination.species,
+              notes: vaccination.notes
+            };
+          });
+
+        console.log('🎯 Formatted vaccinations:', formattedVaccinations);
+        setUpcomingVaccinations(formattedVaccinations);
+        
+        // Update stats based on data
+        if (result.data.length > 0) {
+          const totalVaccinations = result.data.length;
+          const upcomingCount = formattedVaccinations.length;
+          const vaccinatedPercentage = Math.min(100, Math.round((upcomingCount / totalVaccinations) * 100));
+          
+          setHealthStats(prev => ({
+            ...prev,
+            vaccinatedPercentage
+          }));
+        }
+        
+        // Schedule notifications for upcoming vaccinations
+        scheduleVaccinationNotifications(formattedVaccinations);
+      } else {
+        console.log('⚠️ No data or invalid response structure:', result);
+        setUpcomingVaccinations([]);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching vaccinations:', error);
+      setUpcomingVaccinations([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
   };
 
+  // Schedule notifications for vaccinations
+  const scheduleVaccinationNotifications = async (vaccinations: FormattedVaccination[]): Promise<void> => {
+    try {
+      // Request notification permissions
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        console.log('Notification permission not granted');
+        return;
+      }
 
+      // Cancel all existing notifications
+      await Notifications.cancelAllScheduledNotificationsAsync();
+
+      // Schedule new notifications
+      for (const vaccination of vaccinations) {
+        try {
+          const vaccineDate = new Date(vaccination.scheduled_date);
+          
+          // Schedule notification 5 minutes before vaccination time (set to 9 AM for demo)
+          const notificationTime = new Date(vaccineDate);
+          notificationTime.setHours(9, 55, 0, 0); // 9:55 AM on the day of vaccination
+          
+          // Only schedule if notification time is in the future
+          if (notificationTime > new Date()) {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: '⏰ Vaccination Reminder',
+                body: `Time to vaccinate ${vaccination.species} with ${vaccination.vaccine}`,
+                data: { 
+                  vaccinationId: vaccination.id,
+                  type: 'vaccination_reminder' 
+                },
+                sound: 'default',
+                priority: Notifications.AndroidNotificationPriority.HIGH,
+              },
+              trigger: {
+                type: "date",
+                date: notificationTime,
+                repeats: false,
+              } as Notifications.DateTriggerInput,
+            });
+            console.log(`⏰ Scheduled notification for ${vaccination.vaccine} at ${notificationTime}`);
+          }
+
+          // Also schedule a daily reminder 3 days before
+          const threeDaysBefore = new Date(vaccineDate);
+          threeDaysBefore.setDate(threeDaysBefore.getDate() - 3);
+          threeDaysBefore.setHours(9, 0, 0, 0); // 9 AM
+          
+          if (threeDaysBefore > new Date()) {
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title: '📅 Upcoming Vaccination',
+                body: `Vaccination for ${vaccination.species} in 3 days: ${vaccination.vaccine}`,
+                data: { 
+                  vaccinationId: vaccination.id,
+                  type: 'upcoming_vaccination' 
+                },
+                sound: 'default',
+              },
+              trigger: {
+                type: 'date',
+                date: threeDaysBefore,
+                repeats: false,
+              } as Notifications.DateTriggerInput,
+            });
+            console.log(`📅 Scheduled 3-day reminder for ${vaccination.vaccine}`);
+          }
+        } catch (error) {
+          console.error(`Error scheduling notification for vaccination ${vaccination.id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error scheduling notifications:', error);
+    }
+  };
+
+  // Refresh data
+  const onRefresh = (): void => {
+    setRefreshing(true);
+    fetchVaccinations();
+  };
+
+  // Load data on component mount
+  useEffect(() => {
+    fetchVaccinations();
+    
+    // Listen for notification interactions
+    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+      const data = response.notification.request.content.data;
+      if (data.type === 'vaccination_reminder') {
+        router.push(`/vaccination/${data.vaccinationId}` as any);
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, []);
 
   const getSeverityColors = (severity: Severity) => {
     switch (severity) {
@@ -42,7 +360,18 @@ export default function HealthScreen() {
   };
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <ScrollView 
+      style={styles.container} 
+      showsVerticalScrollIndicator={false}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={['#10B981']}
+          tintColor="#10B981"
+        />
+      }
+    >
       {/* Header with Gradient */}
       <LinearGradient
         colors={['#10B981', '#059669']}
@@ -63,7 +392,7 @@ export default function HealthScreen() {
               <View style={styles.iconCircle}>
                 <Heart size={20} color="#059669" fill="#059669" />
               </View>
-              <Text style={styles.overviewValue}>98.9%</Text>
+              <Text style={styles.overviewValue}>{healthStats.healthyPercentage}%</Text>
               <Text style={styles.overviewLabel}>Healthy</Text>
               <View style={styles.trendBadge}>
                 <TrendingUp size={10} color="#059669" />
@@ -80,7 +409,7 @@ export default function HealthScreen() {
               <View style={styles.iconCircle}>
                 <Thermometer size={20} color="#D97706" />
               </View>
-              <Text style={styles.overviewValue}>37.2°C</Text>
+              <Text style={styles.overviewValue}>{healthStats.avgTemperature}°C</Text>
               <Text style={styles.overviewLabel}>Avg Temp</Text>
               <View style={styles.trendBadge}>
                 <Text style={styles.trendText}>Normal</Text>
@@ -96,7 +425,7 @@ export default function HealthScreen() {
               <View style={styles.iconCircle}>
                 <Syringe size={20} color="#2563EB" />
               </View>
-              <Text style={styles.overviewValue}>85%</Text>
+              <Text style={styles.overviewValue}>{healthStats.vaccinatedPercentage}%</Text>
               <Text style={styles.overviewLabel}>Vaccinated</Text>
               <View style={styles.trendBadge}>
                 <Text style={styles.trendText}>On Track</Text>
@@ -120,44 +449,69 @@ export default function HealthScreen() {
           </TouchableOpacity>
         </View>
 
-        {upcomingVaccinations.map((vaccination, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.vaccinationItem,
-              index === upcomingVaccinations.length - 1 && styles.lastItem
-            ]}
-            activeOpacity={0.7}
-          >
-            <View style={styles.vaccinationLeft}>
-              <View style={styles.animalEmoji}>
-                <Text style={styles.emojiText}>{vaccination.icon}</Text>
-              </View>
-              <View style={styles.vaccinationContent}>
-                <Text style={styles.vaccinationAnimal}>{vaccination.animal}</Text>
-                <Text style={styles.vaccinationVaccine}>{vaccination.vaccine}</Text>
-                <View style={styles.dateRow}>
-                  <Calendar size={12} color="#6B7280" />
-                  <Text style={[
-                    styles.vaccinationDate,
-                    vaccination.urgent && styles.urgentDate
-                  ]}>
-                    {vaccination.date}
-                  </Text>
-                </View>
-              </View>
-            </View>
-            {vaccination.urgent && (
-              <LinearGradient
-                colors={['#FEE2E2', '#FECACA']}
-                style={styles.urgentBadge}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="small" color="#3B82F6" />
+            <Text style={styles.loadingText}>Loading vaccinations...</Text>
+          </View>
+        ) : upcomingVaccinations.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Bell size={24} color="#9CA3AF" />
+            <Text style={styles.emptyStateText}>No upcoming vaccinations</Text>
+            <Text style={styles.emptyStateSubtext}>Add your first vaccination schedule</Text>
+            <TouchableOpacity 
+              style={styles.emptyStateButton}
+              onPress={() => router.push('/addVaccination')}
+            >
+              <Text style={styles.emptyStateButtonText}>Add Vaccination</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            <Text style={styles.resultCount}>
+              Showing {upcomingVaccinations.length} upcoming vaccination{upcomingVaccinations.length !== 1 ? 's' : ''}
+            </Text>
+            {upcomingVaccinations.map((vaccination, index) => (
+              <TouchableOpacity
+                key={vaccination.id}
+                style={[
+                  styles.vaccinationItem,
+                  index === upcomingVaccinations.length - 1 && styles.lastItem
+                ]}
+                activeOpacity={0.7}
+                onPress={() => router.push(`/vaccination/${vaccination.id}` as any)}
               >
-                <Text style={styles.urgentText}>⚡ Urgent</Text>
-              </LinearGradient>
-            )}
-            <ChevronRight size={20} color="#D1D5DB" />
-          </TouchableOpacity>
-        ))}
+                <View style={styles.vaccinationLeft}>
+                  <View style={styles.animalEmoji}>
+                    <Text style={styles.emojiText}>{vaccination.icon}</Text>
+                  </View>
+                  <View style={styles.vaccinationContent}>
+                    <Text style={styles.vaccinationAnimal}>{vaccination.animal}</Text>
+                    <Text style={styles.vaccinationVaccine}>{vaccination.vaccine}</Text>
+                    <View style={styles.dateRow}>
+                      <Calendar size={12} color="#6B7280" />
+                      <Text style={[
+                        styles.vaccinationDate,
+                        vaccination.urgent && styles.urgentDate
+                      ]}>
+                        {vaccination.date}
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+                {vaccination.urgent && (
+                  <LinearGradient
+                    colors={['#FEE2E2', '#FECACA']}
+                    style={styles.urgentBadge}
+                  >
+                    <Text style={styles.urgentText}>⚡ Urgent</Text>
+                  </LinearGradient>
+                )}
+                <ChevronRight size={20} color="#D1D5DB" />
+              </TouchableOpacity>
+            ))}
+          </>
+        )}
       </View>
 
       {/* Health Alerts */}
@@ -252,10 +606,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-  },
-  headerEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
   },
   title: {
     fontSize: 28,
@@ -527,5 +877,49 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 30,
+  },
+  loadingContainer: {
+    alignItems: 'center',
+    paddingVertical: 20,
+  },
+  loadingText: {
+    marginTop: 8,
+    color: '#6B7280',
+    fontSize: 14,
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 30,
+    paddingHorizontal: 20,
+  },
+  emptyStateText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  emptyStateSubtext: {
+    fontSize: 14,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  emptyStateButton: {
+    backgroundColor: '#3B82F6',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  emptyStateButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+  resultCount: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginBottom: 12,
+    fontStyle: 'italic',
   },
 });

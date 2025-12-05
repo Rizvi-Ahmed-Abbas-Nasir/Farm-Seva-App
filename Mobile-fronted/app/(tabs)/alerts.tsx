@@ -31,8 +31,8 @@ import {
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { router, useLocalSearchParams } from "expo-router";
+import Papa from "papaparse";
 
-// Interface matching your Google Sheets data
 export interface AlertItem {
   Type: string;
   MonthYear: string;
@@ -65,89 +65,123 @@ type RootStackParamList = {
 
 type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 
-// Mock data matching your Google Sheets structure
-const MOCK_ALERTS_DATA: AlertItem[] = [
-  {
-    Type: "Critical",
-    MonthYear: "Dec 2024",
-    LocationsEffected: "Pig Pen 2, Broiler House 1",
-    DiseaseName: "African Swine Fever",
-    UpdatedDate: "2024-12-15",
-    UpdatedOn: "10:30 AM",
-    DiseaseOverview: "High mortality rate detected in pigs with symptoms of high fever, loss of appetite, and hemorrhages.",
-    PossiblePreventiveMeasure: "Strict biosecurity measures, quarantine affected animals, disinfect premises"
-  },
-  {
-    Type: "Warning",
-    MonthYear: "Dec 2024",
-    LocationsEffected: "Layer House 3",
-    DiseaseName: "Avian Influenza",
-    UpdatedDate: "2024-12-14",
-    UpdatedOn: "2:15 PM",
-    DiseaseOverview: "Moderate respiratory symptoms observed in laying hens with reduced egg production.",
-    PossiblePreventiveMeasure: "Isolate sick birds, enhance ventilation, monitor temperature"
-  },
-  {
-    Type: "Critical",
-    MonthYear: "Dec 2024",
-    LocationsEffected: "Feed Storage Area",
-    DiseaseName: "Aflatoxin Contamination",
-    UpdatedDate: "2024-12-13",
-    UpdatedOn: "9:00 AM",
-    DiseaseOverview: "Feed samples show high levels of aflatoxin, posing health risk to all livestock.",
-    PossiblePreventiveMeasure: "Destroy contaminated feed, test new batches, improve storage conditions"
-  },
-  {
-    Type: "Warning",
-    MonthYear: "Dec 2024",
-    LocationsEffected: "All Water Sources",
-    DiseaseName: "Water Quality Alert",
-    UpdatedDate: "2024-12-12",
-    UpdatedOn: "11:45 AM",
-    DiseaseOverview: "High bacterial count detected in drinking water systems across the farm.",
-    PossiblePreventiveMeasure: "Chlorinate water systems, clean tanks, regular water testing"
-  },
-  {
-    Type: "Info",
-    MonthYear: "Dec 2024",
-    LocationsEffected: "Broiler House 2",
-    DiseaseName: "Heat Stress",
-    UpdatedDate: "2024-12-11",
-    UpdatedOn: "3:30 PM",
-    DiseaseOverview: "Temperature slightly above optimal range, birds showing mild signs of heat stress.",
-    PossiblePreventiveMeasure: "Increase ventilation, provide cool water, adjust feeding times"
-  },
-  {
-    Type: "Critical",
-    MonthYear: "Dec 2024",
-    LocationsEffected: "Quarantine Zone",
-    DiseaseName: "Foot and Mouth Disease",
-    UpdatedDate: "2024-12-10",
-    UpdatedOn: "8:15 AM",
-    DiseaseOverview: "Suspected case in newly arrived cattle showing mouth and foot lesions.",
-    PossiblePreventiveMeasure: "Immediate quarantine, restrict movement, notify veterinary authorities"
-  },
-  {
-    Type: "Info",
-    MonthYear: "Dec 2024",
-    LocationsEffected: "Vaccination Room",
-    DiseaseName: "Vaccination Due",
-    UpdatedDate: "2024-12-09",
-    UpdatedOn: "1:00 PM",
-    DiseaseOverview: "Regular vaccination schedule for Newcastle disease is due this week.",
-    PossiblePreventiveMeasure: "Schedule vaccination, prepare vaccines, record batch numbers"
-  },
-  {
-    Type: "Warning",
-    MonthYear: "Dec 2024",
-    LocationsEffected: "Manure Pit Area",
-    DiseaseName: "Ammonia Levels High",
-    UpdatedDate: "2024-12-08",
-    UpdatedOn: "4:45 PM",
-    DiseaseOverview: "Ammonia concentration above safe limits in enclosed housing areas.",
-    PossiblePreventiveMeasure: "Increase ventilation, adjust manure management, use neutralizers"
+// // Mock data matching your Google Sheets structure
+// const MOCK_ALERTS_DATA: AlertItem[] = [
+//   {
+//     Type: "Critical",
+//     MonthYear: "Dec 2024",
+//     LocationsEffected: "Pig Pen 2, Broiler House 1",
+//     DiseaseName: "African Swine Fever",
+//     UpdatedDate: "2024-12-15",
+//     UpdatedOn: "10:30 AM",
+//     DiseaseOverview: "High mortality rate detected in pigs with symptoms of high fever, loss of appetite, and hemorrhages.",
+//     PossiblePreventiveMeasure: "Strict biosecurity measures, quarantine affected animals, disinfect premises"
+//   },
+//   {
+//     Type: "Warning",
+//     MonthYear: "Dec 2024",
+//     LocationsEffected: "Layer House 3",
+//     DiseaseName: "Avian Influenza",
+//     UpdatedDate: "2024-12-14",
+//     UpdatedOn: "2:15 PM",
+//     DiseaseOverview: "Moderate respiratory symptoms observed in laying hens with reduced egg production.",
+//     PossiblePreventiveMeasure: "Isolate sick birds, enhance ventilation, monitor temperature"
+//   },
+//   {
+//     Type: "Critical",
+//     MonthYear: "Dec 2024",
+//     LocationsEffected: "Feed Storage Area",
+//     DiseaseName: "Aflatoxin Contamination",
+//     UpdatedDate: "2024-12-13",
+//     UpdatedOn: "9:00 AM",
+//     DiseaseOverview: "Feed samples show high levels of aflatoxin, posing health risk to all livestock.",
+//     PossiblePreventiveMeasure: "Destroy contaminated feed, test new batches, improve storage conditions"
+//   },
+//   {
+//     Type: "Warning",
+//     MonthYear: "Dec 2024",
+//     LocationsEffected: "All Water Sources",
+//     DiseaseName: "Water Quality Alert",
+//     UpdatedDate: "2024-12-12",
+//     UpdatedOn: "11:45 AM",
+//     DiseaseOverview: "High bacterial count detected in drinking water systems across the farm.",
+//     PossiblePreventiveMeasure: "Chlorinate water systems, clean tanks, regular water testing"
+//   },
+//   {
+//     Type: "Info",
+//     MonthYear: "Dec 2024",
+//     LocationsEffected: "Broiler House 2",
+//     DiseaseName: "Heat Stress",
+//     UpdatedDate: "2024-12-11",
+//     UpdatedOn: "3:30 PM",
+//     DiseaseOverview: "Temperature slightly above optimal range, birds showing mild signs of heat stress.",
+//     PossiblePreventiveMeasure: "Increase ventilation, provide cool water, adjust feeding times"
+//   },
+//   {
+//     Type: "Critical",
+//     MonthYear: "Dec 2024",
+//     LocationsEffected: "Quarantine Zone",
+//     DiseaseName: "Foot and Mouth Disease",
+//     UpdatedDate: "2024-12-10",
+//     UpdatedOn: "8:15 AM",
+//     DiseaseOverview: "Suspected case in newly arrived cattle showing mouth and foot lesions.",
+//     PossiblePreventiveMeasure: "Immediate quarantine, restrict movement, notify veterinary authorities"
+//   },
+//   {
+//     Type: "Info",
+//     MonthYear: "Dec 2024",
+//     LocationsEffected: "Vaccination Room",
+//     DiseaseName: "Vaccination Due",
+//     UpdatedDate: "2024-12-09",
+//     UpdatedOn: "1:00 PM",
+//     DiseaseOverview: "Regular vaccination schedule for Newcastle disease is due this week.",
+//     PossiblePreventiveMeasure: "Schedule vaccination, prepare vaccines, record batch numbers"
+//   },
+//   {
+//     Type: "Warning",
+//     MonthYear: "Dec 2024",
+//     LocationsEffected: "Manure Pit Area",
+//     DiseaseName: "Ammonia Levels High",
+//     UpdatedDate: "2024-12-08",
+//     UpdatedOn: "4:45 PM",
+//     DiseaseOverview: "Ammonia concentration above safe limits in enclosed housing areas.",
+//     PossiblePreventiveMeasure: "Increase ventilation, adjust manure management, use neutralizers"
+//   }
+// ];
+
+
+const fetchDataFromGoogleSheets = async (): Promise<AlertItem[]> => {
+  try {
+    // Your Sheet.best endpoint
+    const response = await fetch(
+      'https://sheet.best/api/sheets/YOUR_SHEET_ID'
+    );
+    
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    
+    const rawData = await response.json();
+    
+    // Transform the data
+    return rawData.map((row: any) => ({
+      Type: row.Type || '',
+      MonthYear: row.MonthYear || '',
+      LocationsEffected: row['Locations Effected'] || row.LocationsEffected || '',
+      DiseaseName: row.DiseaseName || '',
+      UpdatedDate: row.UpdatedDate || '',
+      UpdatedOn: row.UpdatedOn || '',
+      DiseaseOverview: row['Disease Overview'] || row.DiseaseOverview || '',
+      PossiblePreventiveMeasure: row['Possible Preventive Measure'] || row.PossiblePreventiveMeasure || ''
+    }));
+  } catch (error) {
+    console.error('Error fetching from Google Sheets:', error);
+    return [];
   }
-];
+};
+
+
+
 
 const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
   const navigation = useNavigation<NavigationProp>();
@@ -171,17 +205,17 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
     }
   }, [params.assessmentResult]);
 
-  // Transform and process data
   const processAlertData = (rawData: AlertItem[]): AlertData[] => {
     return rawData.map((item, index) => {
-      // Determine severity based on Type
-      const getSeverity = (type: string): "critical" | "warning" | "info" => {
-        const typeLower = type.toLowerCase();
-        if (typeLower.includes('critical') || typeLower.includes('high')) return "critical";
-        if (typeLower.includes('warning') || typeLower.includes('medium')) return "warning";
-        return "info";
-      };
-
+     
+const getSeverity = (type: string): "critical" | "warning" | "info" => {
+  if (!type) return "info"; 
+  
+  const typeLower = type.toLowerCase();
+  if (typeLower.includes('critical') || typeLower.includes('high')) return "critical";
+  if (typeLower.includes('warning') || typeLower.includes('medium')) return "warning";
+  return "info";
+};
       // Determine status based on data
       const getStatus = (): "active" | "investigating" | "scheduled" | "resolved" => {
         const daysAgo = Math.floor(Math.random() * 7);
@@ -191,18 +225,25 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
         return "resolved";
       };
 
-      // Generate time ago string
-      const getTimeAgo = (dateStr: string) => {
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffDays = Math.floor(diffHours / 24);
+    const getTimeAgo = (dateStr: string) => {
+  if (!dateStr) return "Recently";
+  
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return "Recently";
+    
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffHours / 24);
 
-        if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-        if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-        return "Just now";
-      };
+    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+    if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+    return "Just now";
+  } catch {
+    return "Recently";
+  }
+};
 
       // Calculate priority (Critical > Warning > Info)
       const getPriority = (severity: string): number => {
@@ -227,6 +268,9 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
       };
     }).sort((a, b) => b.priority - a.priority);
   };
+
+
+  
 
   // Helper functions
   const getSeverityColor = (severity: string) => {
@@ -383,38 +427,119 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
     }
   };
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+ type AlertRow = {
+  id: string;
+  type: string;
+  value: string;
+  risk: string;
+  timestamp: string;
+  overview?: string;
+  recommendation?: string;
+};
 
-      const alertData = initialData && initialData.length > 0 ? initialData : MOCK_ALERTS_DATA;
-      const processedData = processAlertData(alertData);
-      setData(processedData);
+// Replace your fetchDataFromGoogleSheets function with this:
+const fetchDataFromGoogleSheets = async (): Promise<AlertItem[]> => {
+  try {
+    const url =
+      "https://docs.google.com/spreadsheets/d/1GYaSR_EL4c-oKNyiTyx1XOv2aI-ON8WmGJ0G491j35E/export?format=csv";
 
-      // Only calculate initial risk assessment if no assessment result from params
-      if (!params.assessmentResult) {
-        // Try to fetch from backend first
-        const loaded = await fetchLatestAssessment();
+    const response = await fetch(url);
 
-        // If no assessment loaded from backend, calculate default
-        if (!loaded) {
-          calculateRiskAssessment(processedData);
-        }
-      }
-    } catch (error) {
-      console.error("Error loading data:", error);
-      Alert.alert("Error", "Failed to load alert data. Using mock data.");
-      const processedData = processAlertData(MOCK_ALERTS_DATA);
-      setData(processedData);
-      // Only calculate if no params assessment
-      if (!params.assessmentResult) {
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const csvText = await response.text();
+
+    return new Promise((resolve, reject) => {
+      Papa.parse(csvText, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          // Debug: Log the raw data structure
+          console.log("Raw Google Sheets data:", results.data);
+          
+          const mapped: AlertItem[] = results.data
+            .filter((row: any) => row && row.Type) // Filter out rows without Type
+            .map((row: any) => ({
+              Type: (row.Type || "").toString().trim(),
+              MonthYear: (row.MonthYear || "").toString().trim(),
+              LocationsEffected: (row["Locations Effected"] || row.LocationsEffected || "").toString().trim(),
+              DiseaseName: (row.DiseaseName || "").toString().trim(),
+              UpdatedDate: (row.UpdatedDate || "").toString().trim(),
+              UpdatedOn: (row.UpdatedOn || "").toString().trim(),
+              DiseaseOverview: (row["Disease Overview"] || row.DiseaseOverview || "").toString().trim(),
+              PossiblePreventiveMeasure: (row["Possible Preventive Measure"] || row.PossiblePreventiveMeasure || "").toString().trim()
+            }))
+            .filter(item => item.Type && item.DiseaseName); // Only include valid items
+
+          console.log(`Parsed ${mapped.length} alerts from Google Sheets`);
+          resolve(mapped);
+        },
+        error: (err : any) => {
+          console.error("PapaParse error:", err);
+          reject(err);
+        },
+      });
+    });
+  } catch (error) {
+    console.error("Error fetching from Google Sheets:", error);
+    return [];
+  }
+};
+
+
+const loadData = async () => {
+  setLoading(true);
+
+  try {
+    console.log("Starting data load...");
+    
+    const googleAlerts = await fetchDataFromGoogleSheets();
+    console.log(`Got ${googleAlerts.length} alerts from Google Sheets`);
+
+    // 2. Use Google Sheets data or fallback to initialData
+    const alertData = googleAlerts.length > 0 ? googleAlerts : (initialData || []);
+    
+    console.log(`Processing ${alertData.length} total alerts`);
+    
+    // Debug: Log first few items
+    if (alertData.length > 0) {
+      console.log("First alert sample:", {
+        Type: alertData[0].Type,
+        DiseaseName: alertData[0].DiseaseName,
+        LocationsEffected: alertData[0].LocationsEffected
+      });
+    }
+
+    // 3. Process the data
+    const processedData = processAlertData(alertData);
+    console.log(`Processed ${processedData.length} alerts`);
+    setData(processedData);
+
+    // 4. Handle risk assessment
+    if (!params.assessmentResult) {
+      const loaded = await fetchLatestAssessment?.();
+      if (!loaded && processedData.length > 0) {
         calculateRiskAssessment(processedData);
       }
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (error) {
+    console.error("Error loading data:", error);
+    Alert.alert(
+      "Data Error",
+      "Unable to load alerts data. Please check your connection and try again."
+    );
+    
+    // Fallback to empty data
+    setData([]);
+  } finally {
+    setLoading(false);
+  }
+};
+
+
+
 
   const onRefresh = async () => {
     setRefreshing(true);
