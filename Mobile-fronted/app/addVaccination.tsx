@@ -81,192 +81,72 @@ export default function AddVaccinationScreen() {
         console.log('=== END DEBUG ===');
     };
 
-   const handleSubmit = async () => {
-    if (!isAuthenticated) {
-        Alert.alert("Authentication Required", "Please login first.");
-        return;
-    }
+    const handleSubmit = async () => {
+        console.log("Submit button pressed"); // Debug log
 
-    // Debug first
-    await debugEnvironment();
+        // 1. Check Auth
+        if (!isAuthenticated) {
+            Alert.alert("Debug", "IsAuthenticated is FALSE. Please login.");
+            return;
+        }
 
-    // Validation
-    if (!vaccineName.trim()) {
-        Alert.alert("Missing Fields", "Vaccine name is required.");
-        return;
-    }
-    if (!date.trim()) {
-        Alert.alert("Missing Fields", "Scheduled date is required.");
-        return;
-    }
-    // Date format validation (YYYY-MM-DD)
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
-    if (!dateRegex.test(date)) {
-        Alert.alert("Invalid Date", "Please use YYYY-MM-DD format.");
-        return;
-    }
-    // Time format validation (HH:MM)
-    const timeRegex = /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/;
-    if (!timeRegex.test(time)) {
-        Alert.alert("Invalid Time", "Please use HH:MM format (24-hour).");
-        return;
-    }
+        // 2. Validation
+        if (!vaccineName.trim()) {
+            Alert.alert("Missing Fields", "Vaccine name is required.");
+            return;
+        }
+        if (!date.trim()) {
+            Alert.alert("Missing Fields", "Scheduled date is required.");
+            return;
+        }
 
-    setIsLoading(true);
+        setIsLoading(true);
 
-    try {
-        // Get token from AsyncStorage
-        let token: string | null = null;
         try {
-            token = await AsyncStorage.getItem('userToken');
-        } catch (storageError) {
-            console.error('Storage error:', storageError);
-            Alert.alert("Storage Error", "Failed to retrieve authentication token.");
-            return;
-        }
-        
-        if (!token) {
-            Alert.alert("Authentication Required", "Please login to continue.");
-            router.replace('/auth');
-            return;
-        }
-
-        // Create datetime string by combining date and time
-        const scheduledDateTime = `${date}T${time}:00.000Z`;
-
-        const requestData = {
-            species,
-            vaccine_name: vaccineName,
-            scheduled_date: scheduledDateTime,
-            administration_method: method,
-            notes
-        };
-
-        console.log('📡 API Request Details:');
-        console.log('URL:', `${API_URL}/vaccinations/add`);
-        console.log('Method: POST');
-        console.log('Headers:', {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${token.substring(0, 20)}...`
-        });
-        console.log('Request Data:', requestData);
-        console.log('Full Token Length:', token.length);
-
-        // Using axios for API call
-        const response = await api.post(
-            `${API_URL}/vaccinations/add`,
-            requestData,
-            {
-                headers: {
-                    "Content-Type": "application/json",
-                    "Authorization": `Bearer ${token}`
-                }
+            const token = await AsyncStorage.getItem('userToken');
+            if (!token) {
+                Alert.alert("Error", "No token found in storage.");
+                setIsLoading(false);
+                return;
             }
-        );
 
-        console.log('✅ API Response:');
-        console.log('Status:', response.status);
-        console.log('Data:', response.data);
+            const scheduledDateTime = `${date}T${time}:00.000Z`;
+            const requestData = {
+                species,
+                vaccine_name: vaccineName,
+                scheduled_date: scheduledDateTime,
+                administration_method: method,
+                notes
+            };
 
-        if (response.status === 200 || response.status === 201) {
-            Alert.alert(
-                "Success",
-                "Vaccination scheduled successfully!",
-                [
-                    {
-                        text: "OK",
-                        onPress: () => {
-                            // Reset form
-                            setVaccineName('');
-                            setDate('');
-                            setTime('09:00');
-                            setMethod('');
-                            setNotes('');
-                            // Navigate back
-                            router.back();
-                        }
+            const targetUrl = `${API_URL}/vaccinations/add`;
+            // Alert.alert("Debug", `Sending to: ${targetUrl}`); // Uncomment if needed
+
+            const response = await api.post(
+                targetUrl,
+                requestData,
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Bearer ${token}`
                     }
-                ]
-            );
-        } else {
-            Alert.alert("Error", "Unexpected response from server.");
-        }
-
-    } catch (error: any) {
-        console.error('❌ API Error Details:');
-        
-        if (axios.isAxiosError(error)) {
-            // Axios specific error
-            if (error.response) {
-                // Server responded with error status
-                console.error('Response Status:', error.response.status);
-                console.error('Response Data:', error.response.data);
-                
-                if (error.response.status === 401) {
-                    Alert.alert(
-                        "Session Expired",
-                        "Your session has expired. Please login again.",
-                        [
-                            {
-                                text: "Login",
-                                onPress: () => {
-                                    AsyncStorage.removeItem('userToken');
-                                    router.replace('/auth');
-                                }
-                            }
-                        ]
-                    );
-                } else if (error.response.status === 400) {
-                    Alert.alert(
-                        "Invalid Data",
-                        error.response.data?.message || 
-                        error.response.data?.error || 
-                        "Please check your input data."
-                    );
-                } else if (error.response.status === 500) {
-                    Alert.alert(
-                        "Server Error",
-                        "Internal server error. Please try again later."
-                    );
-                } else {
-                    Alert.alert(
-                        "Error",
-                        `Server responded with status: ${error.response.status}`
-                    );
                 }
-            } else if (error.request) {
-                // No response received
-                console.error('No Response Received');
-                
-                Alert.alert(
-                    "Network Error",
-                    "No response received from server. Please check:\n\n" +
-                    "1. Your internet connection\n" +
-                    "2. If the server is running\n" +
-                    "3. API endpoint: " + API_URL
-                );
-            } else {
-                // Request setup error
-                console.error('Request Setup Error:', error.message);
-                
-                Alert.alert(
-                    "Request Error",
-                    "Failed to setup request: " + error.message
-                );
-            }
-        } else {
-            // Non-axios error
-            console.error('Non-Axios Error:', error);
-            Alert.alert(
-                "Error",
-                "An unexpected error occurred. Please try again."
             );
+
+            if (response.status === 200 || response.status === 201) {
+                Alert.alert("Success", "Vaccination scheduled!");
+                router.back();
+            } else {
+                Alert.alert("Error", `Server returned status: ${response.status}`);
+            }
+
+        } catch (error: any) {
+            console.error('API Error:', error);
+            Alert.alert("Submission Error", error.message || "Unknown error occurred");
+        } finally {
+            setIsLoading(false);
         }
-        
-    } finally {
-        setIsLoading(false);
-    }
-};
+    };
 
     // Test API connection
     const testAPIConnection = async () => {
@@ -276,13 +156,13 @@ export default function AddVaccinationScreen() {
                 "This will test if the API endpoint is reachable.",
                 [
                     { text: "Cancel", style: "cancel" },
-                    { 
-                        text: "Test", 
+                    {
+                        text: "Test",
                         onPress: async () => {
                             try {
                                 console.log('Testing connection to:', API_URL);
-                                const response = await axios.get(`${API_URL}/health`, { 
-                                    timeout: 5000 
+                                const response = await axios.get(`${API_URL}/health`, {
+                                    timeout: 5000
                                 });
                                 Alert.alert("✅ Connection Successful", `Server responded: ${response.status}`);
                             } catch (err: any) {
@@ -354,7 +234,7 @@ export default function AddVaccinationScreen() {
                     <ChevronLeft size={24} color="#FFFFFF" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Schedule Vaccination</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                     onPress={testAPIConnection}
                     style={styles.debugButton}
                 >
@@ -366,8 +246,8 @@ export default function AddVaccinationScreen() {
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
             >
-                <ScrollView 
-                    style={styles.content} 
+                <ScrollView
+                    style={styles.content}
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
                 >
@@ -376,7 +256,7 @@ export default function AddVaccinationScreen() {
                     {!isAuthenticated && (
                         <View style={styles.authWarning}>
                             <Text style={styles.authWarningText}>⚠️ Please login to schedule vaccinations</Text>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.loginButton}
                                 onPress={() => router.replace('/auth')}
                             >
@@ -487,11 +367,11 @@ export default function AddVaccinationScreen() {
                         />
                     </View>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={[
-                            styles.submitButton, 
+                            styles.submitButton,
                             (isLoading || !isAuthenticated) && styles.submitButtonDisabled
-                        ]} 
+                        ]}
                         onPress={handleSubmit}
                         disabled={isLoading || !isAuthenticated}
                     >
@@ -512,13 +392,13 @@ export default function AddVaccinationScreen() {
 
                     {/* Debug buttons - remove in production */}
                     <View style={styles.debugContainer}>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={styles.debugActionButton}
                             onPress={manualTokenInput}
                         >
                             <Text style={styles.debugActionText}>Manual Token Input</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={[styles.debugActionButton, { marginLeft: 12 }]}
                             onPress={() => {
                                 AsyncStorage.removeItem('userToken');

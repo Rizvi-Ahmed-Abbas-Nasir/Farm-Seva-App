@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { 
-  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert, 
-  Platform, KeyboardAvoidingView, ScrollView 
+import {
+  View, Text, TextInput, TouchableOpacity, StyleSheet, Alert,
+  Platform, KeyboardAvoidingView, ScrollView
 } from 'react-native';
 import axios from 'axios';
 import { Picker } from '@react-native-picker/picker';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from "../app/lib/supabaseClient";
 
 
 // this is my local IP address, replace it with your machine's local IP my pc
@@ -17,12 +18,12 @@ const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 
 const indianStates = [
-  "Andhra Pradesh","Arunachal Pradesh","Assam","Bihar","Chhattisgarh",
-  "Goa","Gujarat","Haryana","Himachal Pradesh","Jharkhand",
-  "Karnataka","Kerala","Madhya Pradesh","Maharashtra","Manipur",
-  "Meghalaya","Mizoram","Nagaland","Odisha","Punjab",
-  "Rajasthan","Sikkim","Tamil Nadu","Telangana","Tripura",
-  "Uttar Pradesh","Uttarakhand","West Bengal"
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand",
+  "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur",
+  "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab",
+  "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+  "Uttar Pradesh", "Uttarakhand", "West Bengal"
 ];
 
 export default function AuthScreen() {
@@ -38,44 +39,57 @@ export default function AuthScreen() {
   const [loading, setLoading] = useState(false);
 
   const handleAuth = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Email and password required');
-      return;
-    }
-
-    if (!isLogin && (!fullName || !phone || !state || !location)) {
-      Alert.alert('Error', 'Please fill all fields');
-      return;
-    }
-
     setLoading(true);
 
-    try {
-      let endpoint = isLogin ? "/login" : "/signup";
-      let payload = isLogin
-        ? { email, password }
-        : { email, password, fullName, phone, state, location, role };
+    if (isLogin) {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
 
-      const response = await axios.post(`${API_URL}/auth${endpoint}`, payload);
-
-      if (isLogin) {
-        await AsyncStorage.setItem("userToken", response.data.token);
-        router.replace("/(tabs)");
-      } else {
-        Alert.alert("Success", "Account created!");
-        setIsLogin(true);
+      if (error) {
+        Alert.alert("Error", error.message);
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-  const error = err as any;
-  Alert.alert("Error", error?.response?.data?.message || "Something went wrong");
-}
 
+      const token = data.session.access_token;
+
+      await AsyncStorage.setItem("userToken", token);
+
+      router.replace("/(tabs)");
+    } else {
+      // SIGNUP using Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            fullName,
+            phone,
+            state,
+            location,
+            role,
+          },
+        },
+      });
+
+      if (error) {
+        Alert.alert("Error", error.message);
+        setLoading(false);
+        return;
+      }
+
+      Alert.alert("Success", "Account created!");
+      setIsLogin(true);
+    }
 
     setLoading(false);
   };
 
+
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >

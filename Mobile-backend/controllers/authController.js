@@ -1,4 +1,3 @@
-import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { supabase } from "../config/supabaseClient.js";
 
@@ -11,62 +10,83 @@ export const signup = async (req, res) => {
       return res.status(400).json({ error: "Invalid role selected" });
     }
 
-    const { data: existingUser } = await supabase
-      .from("users")
-      .select()
-      .eq("email", email)
-      .single();
+    // Create user in Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signUp({
+      email,
+      password,
+    });
 
-    if (existingUser) return res.status(400).json({ error: "User already exists" });
+    if (authError) {
+      return res.status(400).json({ error: authError.message });
+    }
 
-    const hashed = await bcrypt.hash(password, 10);
+    const userId = authData.user.id;
 
-    const { data, error } = await supabase
-      .from("users")
+    // Store extra fields in UserProfiles table
+    const { error: profileError } = await supabase
+      .from("UserProfiles")
       .insert([
-        { fullName, email, password: hashed, phone, state, location, role }
-      ])
-      .select()
-      .single();
+        {
+          id: userId,
+          fullName,
+          phone,
+          state,
+          location,
+          role,
+        },
+      ]);
 
-    if (error) return res.status(400).json({ error: error.message });
+    if (profileError) {
+      return res.status(400).json({ error: profileError.message });
+    }
 
-    res.status(201).json({ message: "User registered", userId: data.id });
-
+    res.status(201).json({
+      message: "User registered successfully",
+      userId,
+    });
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
 };
 
-
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const { data: user } = await supabase
-      .from("users")
+    // Login with Supabase Auth
+    const { data: authData, error: authError } =
+      await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+    if (authError) {
+      return res.status(400).json({ error: "Invalid email or password" });
+    }
+
+    const user = authData.user;
+
+    // Fetch user profile
+    const { data: profile } = await supabase
+      .from("UserProfiles")
       .select()
-      .eq("email", email)
+      .eq("id", user.id)
       .single();
 
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    const match = await bcrypt.compare(password, user.password);
-    if (!match) return res.status(401).json({ error: "Invalid password" });
-
+    // Generate token
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      { id: user.id, role: profile.role },
       process.env.JWT_SECRET,
       { expiresIn: "8h" }
     );
 
     res.json({
+      message: "Login successful",
       token,
       userId: user.id,
-      fullName: user.fullName,
-      role: user.role
+      fullName: profile.fullName,
+      role: profile.role,
     });
-
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }

@@ -159,13 +159,13 @@ const fetchDataFromGoogleSheets = async (): Promise<AlertItem[]> => {
     const response = await fetch(
       'https://sheet.best/api/sheets/YOUR_SHEET_ID'
     );
-    
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
-    
+
     const rawData = await response.json();
-    
+
     // Transform the data
     return rawData.map((row: any) => ({
       Type: row.Type || '',
@@ -197,8 +197,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
   const params = useLocalSearchParams();
 
   const [showAllCritical, setShowAllCritical] = useState(false);
-const [showAllWarning, setShowAllWarning] = useState(false);
-const [showAllFiltered, setShowAllFiltered] = useState(false);
+  const [showAllWarning, setShowAllWarning] = useState(false);
+  const [showAllFiltered, setShowAllFiltered] = useState(false);
 
 
   useEffect(() => {
@@ -215,15 +215,15 @@ const [showAllFiltered, setShowAllFiltered] = useState(false);
 
   const processAlertData = (rawData: AlertItem[]): AlertData[] => {
     return rawData.map((item, index) => {
-     
-const getSeverity = (type: string): "critical" | "warning" | "info" => {
-  if (!type) return "info"; 
-  
-  const typeLower = type.toLowerCase();
-  if (typeLower.includes('critical') || typeLower.includes('high')) return "critical";
-  if (typeLower.includes('warning') || typeLower.includes('medium')) return "warning";
-  return "info";
-};
+
+      const getSeverity = (type: string): "critical" | "warning" | "info" => {
+        if (!type) return "info";
+
+        const typeLower = type.toLowerCase();
+        if (typeLower.includes('critical') || typeLower.includes('high')) return "critical";
+        if (typeLower.includes('warning') || typeLower.includes('medium')) return "warning";
+        return "info";
+      };
       // Determine status based on data
       const getStatus = (): "active" | "investigating" | "scheduled" | "resolved" => {
         const daysAgo = Math.floor(Math.random() * 7);
@@ -233,25 +233,25 @@ const getSeverity = (type: string): "critical" | "warning" | "info" => {
         return "resolved";
       };
 
-    const getTimeAgo = (dateStr: string) => {
-  if (!dateStr) return "Recently";
-  
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return "Recently";
-    
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffDays = Math.floor(diffHours / 24);
+      const getTimeAgo = (dateStr: string) => {
+        if (!dateStr) return "Recently";
 
-    if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
-    if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
-    return "Just now";
-  } catch {
-    return "Recently";
-  }
-};
+        try {
+          const date = new Date(dateStr);
+          if (isNaN(date.getTime())) return "Recently";
+
+          const now = new Date();
+          const diffMs = now.getTime() - date.getTime();
+          const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+          const diffDays = Math.floor(diffHours / 24);
+
+          if (diffDays > 0) return `${diffDays} day${diffDays > 1 ? 's' : ''} ago`;
+          if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`;
+          return "Just now";
+        } catch {
+          return "Recently";
+        }
+      };
 
       // Calculate priority (Critical > Warning > Info)
       const getPriority = (severity: string): number => {
@@ -278,7 +278,7 @@ const getSeverity = (type: string): "critical" | "warning" | "info" => {
   };
 
 
-  
+
 
   // Helper functions
   const getSeverityColor = (severity: string) => {
@@ -301,6 +301,7 @@ const getSeverity = (type: string): "critical" | "warning" | "info" => {
   };
 
   const getRiskLevelColor = (level: string) => {
+    if (!level) return '#6B7280';
     switch (level.toLowerCase()) {
       case 'critical':
       case 'high':
@@ -310,6 +311,7 @@ const getSeverity = (type: string): "critical" | "warning" | "info" => {
       case 'medium':
       case 'warning':
       case 'good':
+      case 'fair':
         return '#F59E0B';
       case 'low':
       case 'optimal':
@@ -435,116 +437,116 @@ const getSeverity = (type: string): "critical" | "warning" | "info" => {
     }
   };
 
- type AlertRow = {
-  id: string;
-  type: string;
-  value: string;
-  risk: string;
-  timestamp: string;
-  overview?: string;
-  recommendation?: string;
-};
+  type AlertRow = {
+    id: string;
+    type: string;
+    value: string;
+    risk: string;
+    timestamp: string;
+    overview?: string;
+    recommendation?: string;
+  };
 
-// Replace your fetchDataFromGoogleSheets function with this:
-const fetchDataFromGoogleSheets = async (): Promise<AlertItem[]> => {
-  try {
-    const url =
-      "https://docs.google.com/spreadsheets/d/1GYaSR_EL4c-oKNyiTyx1XOv2aI-ON8WmGJ0G491j35E/export?format=csv";
+  // Replace your fetchDataFromGoogleSheets function with this:
+  const fetchDataFromGoogleSheets = async (): Promise<AlertItem[]> => {
+    try {
+      const url =
+        "https://docs.google.com/spreadsheets/d/1GYaSR_EL4c-oKNyiTyx1XOv2aI-ON8WmGJ0G491j35E/export?format=csv";
 
-    const response = await fetch(url);
+      const response = await fetch(url);
 
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const csvText = await response.text();
-
-    return new Promise((resolve, reject) => {
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          // Debug: Log the raw data structure
-          console.log("Raw Google Sheets data:", results.data);
-          
-          const mapped: AlertItem[] = results.data
-            .filter((row: any) => row && row.Type) // Filter out rows without Type
-            .map((row: any) => ({
-              Type: (row.Type || "").toString().trim(),
-              MonthYear: (row.MonthYear || "").toString().trim(),
-              LocationsEffected: (row["Locations Effected"] || row.LocationsEffected || "").toString().trim(),
-              DiseaseName: (row.DiseaseName || "").toString().trim(),
-              UpdatedDate: (row.UpdatedDate || "").toString().trim(),
-              UpdatedOn: (row.UpdatedOn || "").toString().trim(),
-              DiseaseOverview: (row["Disease Overview"] || row.DiseaseOverview || "").toString().trim(),
-              PossiblePreventiveMeasure: (row["Possible Preventive Measure"] || row.PossiblePreventiveMeasure || "").toString().trim()
-            }))
-            .filter(item => item.Type && item.DiseaseName); // Only include valid items
-
-          console.log(`Parsed ${mapped.length} alerts from Google Sheets`);
-          resolve(mapped);
-        },
-        error: (err : any) => {
-          console.error("PapaParse error:", err);
-          reject(err);
-        },
-      });
-    });
-  } catch (error) {
-    console.error("Error fetching from Google Sheets:", error);
-    return [];
-  }
-};
-
-
-const loadData = async () => {
-  setLoading(true);
-
-  try {
-    console.log("Starting data load...");
-    
-    const googleAlerts = await fetchDataFromGoogleSheets();
-    console.log(`Got ${googleAlerts.length} alerts from Google Sheets`);
-
-    // 2. Use Google Sheets data or fallback to initialData
-    const alertData = googleAlerts.length > 0 ? googleAlerts : (initialData || []);
-    
-    console.log(`Processing ${alertData.length} total alerts`);
-    
-    // Debug: Log first few items
-    if (alertData.length > 0) {
-      console.log("First alert sample:", {
-        Type: alertData[0].Type,
-        DiseaseName: alertData[0].DiseaseName,
-        LocationsEffected: alertData[0].LocationsEffected
-      });
-    }
-
-    // 3. Process the data
-    const processedData = processAlertData(alertData);
-    console.log(`Processed ${processedData.length} alerts`);
-    setData(processedData);
-
-    // 4. Handle risk assessment
-    if (!params.assessmentResult) {
-      const loaded = await fetchLatestAssessment?.();
-      if (!loaded && processedData.length > 0) {
-        calculateRiskAssessment(processedData);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const csvText = await response.text();
+
+      return new Promise((resolve, reject) => {
+        Papa.parse(csvText, {
+          header: true,
+          skipEmptyLines: true,
+          complete: (results) => {
+            // Debug: Log the raw data structure
+            console.log("Raw Google Sheets data:", results.data);
+
+            const mapped: AlertItem[] = results.data
+              .filter((row: any) => row && row.Type) // Filter out rows without Type
+              .map((row: any) => ({
+                Type: (row.Type || "").toString().trim(),
+                MonthYear: (row.MonthYear || "").toString().trim(),
+                LocationsEffected: (row["Locations Effected"] || row.LocationsEffected || "").toString().trim(),
+                DiseaseName: (row.DiseaseName || "").toString().trim(),
+                UpdatedDate: (row.UpdatedDate || "").toString().trim(),
+                UpdatedOn: (row.UpdatedOn || "").toString().trim(),
+                DiseaseOverview: (row["Disease Overview"] || row.DiseaseOverview || "").toString().trim(),
+                PossiblePreventiveMeasure: (row["Possible Preventive Measure"] || row.PossiblePreventiveMeasure || "").toString().trim()
+              }))
+              .filter(item => item.Type && item.DiseaseName); // Only include valid items
+
+            console.log(`Parsed ${mapped.length} alerts from Google Sheets`);
+            resolve(mapped);
+          },
+          error: (err: any) => {
+            console.error("PapaParse error:", err);
+            reject(err);
+          },
+        });
+      });
+    } catch (error) {
+      console.error("Error fetching from Google Sheets:", error);
+      return [];
     }
-  } catch (error) {
-    console.error("Error loading data:", error);
-    Alert.alert(
-      "Data Error",
-      "Unable to load alerts data. Please check your connection and try again."
-    );
-    
-    // Fallback to empty data
-    setData([]);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
+
+
+  const loadData = async () => {
+    setLoading(true);
+
+    try {
+      console.log("Starting data load...");
+
+      const googleAlerts = await fetchDataFromGoogleSheets();
+      console.log(`Got ${googleAlerts.length} alerts from Google Sheets`);
+
+      // 2. Use Google Sheets data or fallback to initialData
+      const alertData = googleAlerts.length > 0 ? googleAlerts : (initialData || []);
+
+      console.log(`Processing ${alertData.length} total alerts`);
+
+      // Debug: Log first few items
+      if (alertData.length > 0) {
+        console.log("First alert sample:", {
+          Type: alertData[0].Type,
+          DiseaseName: alertData[0].DiseaseName,
+          LocationsEffected: alertData[0].LocationsEffected
+        });
+      }
+
+      // 3. Process the data
+      const processedData = processAlertData(alertData);
+      console.log(`Processed ${processedData.length} alerts`);
+      setData(processedData);
+
+      // 4. Handle risk assessment
+      if (!params.assessmentResult) {
+        const loaded = await fetchLatestAssessment?.();
+        if (!loaded && processedData.length > 0) {
+          calculateRiskAssessment(processedData);
+        }
+      }
+    } catch (error) {
+      console.error("Error loading data:", error);
+      Alert.alert(
+        "Data Error",
+        "Unable to load alerts data. Please check your connection and try again."
+      );
+
+      // Fallback to empty data
+      setData([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
 
 
@@ -569,9 +571,55 @@ const loadData = async () => {
   const warningAlerts = data.filter(item => item.severity === "warning");
   const infoAlerts = data.filter(item => item.severity === "info");
 
-  const riskFactors = [
+  const getLevelFromScore = (score: number, invert = false) => {
+    if (score === undefined || score === null) return "Unknown";
+    if (invert) {
+      if (score >= 80) return "Critical";
+      if (score >= 60) return "High";
+      if (score >= 40) return "Medium";
+      return "Low";
+    } else {
+      if (score >= 80) return "Excellent";
+      if (score >= 60) return "Good";
+      if (score >= 40) return "Fair";
+      return "Poor";
+    }
+  };
 
-
+  const riskFactors = riskAssessment ? [
+    {
+      factor: "Biosecurity",
+      level: getLevelFromScore(riskAssessment.biosecurityScore),
+      trend: "stable",
+      icon: "🛡️",
+      value: `${riskAssessment.biosecurityScore || 0}/100`,
+      details: "Defense against disease"
+    },
+    {
+      factor: "Disease Risk",
+      level: getLevelFromScore(riskAssessment.diseaseRiskScore, true),
+      trend: "up",
+      icon: "🦠",
+      value: `${riskAssessment.diseaseRiskScore || 0}/100`,
+      details: "Current outbreak probability"
+    },
+    {
+      factor: "Infrastructure",
+      level: getLevelFromScore(riskAssessment.infrastructureScore),
+      trend: "stable",
+      icon: "🏗️",
+      value: `${riskAssessment.infrastructureScore || 0}/100`,
+      details: "Facility condition"
+    },
+    {
+      factor: "Climate Risk",
+      level: getLevelFromScore(riskAssessment.climateRiskScore, true),
+      trend: "down",
+      icon: "🌤️",
+      value: `${riskAssessment.climateRiskScore || 0}/100`,
+      details: "Weather impact factor"
+    }
+  ] : [
     {
       factor: "Water Consumption",
       level: "Warning",
@@ -1030,90 +1078,90 @@ const loadData = async () => {
         )}
       </View>
 
-   {/* Critical Alerts Section */}
-{criticalAlerts.length > 0 && filter !== "info" && filter !== "warning" && (
-  <View style={styles.section}>
-    
-    <View style={[styles.sectionHeader, { backgroundColor: "#FEE2E2" }]}>
-      <View style={styles.sectionTitleContainer}>
-        <AlertTriangle size={20} color="#EF4444" />
-        <Text style={[styles.sectionTitle, { color: "#EF4444", marginLeft: 8 }]}>
-          Critical Alerts
-        </Text>
+      {/* Critical Alerts Section */}
+      {criticalAlerts.length > 0 && filter !== "info" && filter !== "warning" && (
+        <View style={styles.section}>
+
+          <View style={[styles.sectionHeader, { backgroundColor: "#FEE2E2" }]}>
+            <View style={styles.sectionTitleContainer}>
+              <AlertTriangle size={20} color="#EF4444" />
+              <Text style={[styles.sectionTitle, { color: "#EF4444", marginLeft: 8 }]}>
+                Critical Alerts
+              </Text>
+            </View>
+
+            <TouchableOpacity onPress={() => setShowAllCritical(!showAllCritical)}>
+              <Text style={[styles.sectionCount, { color: "#EF4444" }]}>
+                {showAllCritical ? "View Less" : "View All"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {(showAllCritical ? criticalAlerts : criticalAlerts.slice(0, 5)).map(alert =>
+            renderAlertItem(alert)
+          )}
+        </View>
+      )}
+
+
+
+      {/* Warning Alerts Section */}
+      {warningAlerts.length > 0 && filter !== "info" && filter !== "critical" && (
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <View style={styles.sectionTitleContainer}>
+              <Shield size={20} color="#F59E0B" />
+              <Text style={[styles.sectionTitle, { color: '#F59E0B', marginLeft: 8 }]}>
+                Warning Alerts
+              </Text>
+            </View>
+
+            <TouchableOpacity onPress={() => setShowAllWarning(!showAllWarning)}>
+              <Text style={styles.sectionCount}>
+                {showAllWarning ? "View Less" : "View All"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {(showAllWarning ? warningAlerts : warningAlerts.slice(0, 5))
+            .map(alert => renderAlertItem(alert))}
+        </View>
+      )}
+
+      {/* Filtered Alerts View */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <View style={styles.sectionTitleContainer}>
+            <Bell size={20} color="#6B7280" />
+            <Text style={styles.sectionTitle}>
+              {filter === "all" ? "All Alerts" :
+                filter === "critical" ? "Critical Alerts" :
+                  filter === "warning" ? "Warning Alerts" : "Info Alerts"}
+            </Text>
+          </View>
+
+          <TouchableOpacity onPress={() => setShowAllFiltered(!showAllFiltered)}>
+            <Text style={styles.sectionCount}>
+              {showAllFiltered ? "View Less" : "View All"}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {filteredData.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Bell size={48} color="#D1D5DB" />
+            <Text style={styles.emptyTitle}>No alerts found</Text>
+            <Text style={styles.emptySubtitle}>
+              {filter === "all"
+                ? "All systems are operating normally"
+                : `No ${filter} alerts at this time`}
+            </Text>
+          </View>
+        ) : (
+          (showAllFiltered ? filteredData : filteredData.slice(0, 5))
+            .map(alert => renderAlertItem(alert))
+        )}
       </View>
-
-      <TouchableOpacity onPress={() => setShowAllCritical(!showAllCritical)}>
-        <Text style={[styles.sectionCount, { color: "#EF4444" }]}>
-          {showAllCritical ? "View Less" : "View All"}
-        </Text>
-      </TouchableOpacity>
-    </View>
-
-    {(showAllCritical ? criticalAlerts : criticalAlerts.slice(0, 5)).map(alert =>
-      renderAlertItem(alert)
-    )}
-  </View>
-)}
-
-
-
-    {/* Warning Alerts Section */}
-{warningAlerts.length > 0 && filter !== "info" && filter !== "critical" && (
-  <View style={styles.section}>
-    <View style={styles.sectionHeader}>
-      <View style={styles.sectionTitleContainer}>
-        <Shield size={20} color="#F59E0B" />
-        <Text style={[styles.sectionTitle, { color: '#F59E0B', marginLeft: 8 }]}>
-          Warning Alerts
-        </Text>
-      </View>
-
-      <TouchableOpacity onPress={() => setShowAllWarning(!showAllWarning)}>
-        <Text style={styles.sectionCount}>
-          {showAllWarning ? "View Less" : "View All"}
-        </Text>
-      </TouchableOpacity>
-    </View>
-
-    {(showAllWarning ? warningAlerts : warningAlerts.slice(0, 5))
-      .map(alert => renderAlertItem(alert))}
-  </View>
-)}
-
-     {/* Filtered Alerts View */}
-<View style={styles.section}>
-  <View style={styles.sectionHeader}>
-    <View style={styles.sectionTitleContainer}>
-      <Bell size={20} color="#6B7280" />
-      <Text style={styles.sectionTitle}>
-        {filter === "all" ? "All Alerts" :
-          filter === "critical" ? "Critical Alerts" :
-          filter === "warning" ? "Warning Alerts" : "Info Alerts"}
-      </Text>
-    </View>
-
-    <TouchableOpacity onPress={() => setShowAllFiltered(!showAllFiltered)}>
-      <Text style={styles.sectionCount}>
-        {showAllFiltered ? "View Less" : "View All"}
-      </Text>
-    </TouchableOpacity>
-  </View>
-
-  {filteredData.length === 0 ? (
-    <View style={styles.emptyState}>
-      <Bell size={48} color="#D1D5DB" />
-      <Text style={styles.emptyTitle}>No alerts found</Text>
-      <Text style={styles.emptySubtitle}>
-        {filter === "all"
-          ? "All systems are operating normally"
-          : `No ${filter} alerts at this time`}
-      </Text>
-    </View>
-  ) : (
-    (showAllFiltered ? filteredData : filteredData.slice(0, 5))
-      .map(alert => renderAlertItem(alert))
-  )}
-</View>
 
 
       {/* Footer */}

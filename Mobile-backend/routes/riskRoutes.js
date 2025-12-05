@@ -169,7 +169,7 @@ router.get("/latest", async (req, res) => {
 
         // Return the assessment in the same format as the POST response
         res.json({
-            overallScore: data.risk_score,
+            overallScore: data.risk_score || data.overall_score,
             overallLevel: data.risk_level,
             overview: data.overview,
             criticalCount: data.critical_count,
@@ -178,7 +178,11 @@ router.get("/latest", async (req, res) => {
             savedId: data.id,
             createdAt: data.created_at,
             farmName: data.farm_name,
-            species: data.species
+            species: data.species,
+            biosecurityScore: data.biosecurity_score,
+            diseaseRiskScore: data.disease_risk_score,
+            infrastructureScore: data.infrastructure_score,
+            climateRiskScore: data.climate_risk_score
         });
     } catch (error) {
         console.error("Server Error:", error);

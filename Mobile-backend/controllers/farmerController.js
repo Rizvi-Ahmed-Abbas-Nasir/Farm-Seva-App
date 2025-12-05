@@ -3,7 +3,7 @@ import { supabase } from "../config/supabaseClient.js";
 export const getFarmers = async (req, res) => {
   try {
     const { data, error } = await supabase
-      .from("users")
+      .from("Users")
       .select("*")
       .eq("role", "farmer")
       .order("fullName", { ascending: true });
