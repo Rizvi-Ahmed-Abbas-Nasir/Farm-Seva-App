@@ -150,6 +150,9 @@ type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
 // ];
 
 
+
+
+
 const fetchDataFromGoogleSheets = async (): Promise<AlertItem[]> => {
   try {
     // Your Sheet.best endpoint
@@ -192,6 +195,11 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
   const [expandedAlertId, setExpandedAlertId] = useState<string | null>(null);
   const [riskAssessment, setRiskAssessment] = useState<any>(null);
   const params = useLocalSearchParams();
+
+  const [showAllCritical, setShowAllCritical] = useState(false);
+const [showAllWarning, setShowAllWarning] = useState(false);
+const [showAllFiltered, setShowAllFiltered] = useState(false);
+
 
   useEffect(() => {
     if (params.assessmentResult) {
@@ -1022,72 +1030,91 @@ const loadData = async () => {
         )}
       </View>
 
-      {/* Critical Alerts Section */}
-      {criticalAlerts.length > 0 && filter !== "info" && filter !== "warning" && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <AlertTriangle size={20} color="#EF4444" />
-              <Text style={[styles.sectionTitle, { color: '#EF4444', marginLeft: 8 }]}>
-                Critical Alerts
-              </Text>
-            </View>
-            <Text style={[styles.sectionCount, { backgroundColor: '#FEF2F2' }]}>
-              {criticalAlerts.length} Active
-            </Text>
-          </View>
-
-          {criticalAlerts.map(alert => renderAlertItem(alert))}
-        </View>
-      )}
-
-      {/* Warning Alerts Section */}
-      {warningAlerts.length > 0 && filter !== "info" && filter !== "critical" && (
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <View style={styles.sectionTitleContainer}>
-              <Shield size={20} color="#F59E0B" />
-              <Text style={[styles.sectionTitle, { color: '#F59E0B', marginLeft: 8 }]}>
-                Warning Alerts
-              </Text>
-            </View>
-            <Text style={[styles.sectionCount, { backgroundColor: '#FFFBEB' }]}>
-              {warningAlerts.length} Active
-            </Text>
-          </View>
-
-          {warningAlerts.map(alert => renderAlertItem(alert))}
-        </View>
-      )}
-
-      {/* Filtered Alerts View */}
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-          <View style={styles.sectionTitleContainer}>
-            <Bell size={20} color="#6B7280" />
-            <Text style={styles.sectionTitle}>
-              {filter === "all" ? "All Alerts" :
-                filter === "critical" ? "Critical Alerts" :
-                  filter === "warning" ? "Warning Alerts" : "Info Alerts"}
-            </Text>
-          </View>
-          <Text style={styles.sectionCount}>{filteredData.length}</Text>
-        </View>
-
-        {filteredData.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Bell size={48} color="#D1D5DB" />
-            <Text style={styles.emptyTitle}>No alerts found</Text>
-            <Text style={styles.emptySubtitle}>
-              {filter === "all"
-                ? "All systems are operating normally"
-                : `No ${filter} alerts at this time`}
-            </Text>
-          </View>
-        ) : (
-          filteredData.map(alert => renderAlertItem(alert))
-        )}
+   {/* Critical Alerts Section */}
+{criticalAlerts.length > 0 && filter !== "info" && filter !== "warning" && (
+  <View style={styles.section}>
+    
+    <View style={[styles.sectionHeader, { backgroundColor: "#FEE2E2" }]}>
+      <View style={styles.sectionTitleContainer}>
+        <AlertTriangle size={20} color="#EF4444" />
+        <Text style={[styles.sectionTitle, { color: "#EF4444", marginLeft: 8 }]}>
+          Critical Alerts
+        </Text>
       </View>
+
+      <TouchableOpacity onPress={() => setShowAllCritical(!showAllCritical)}>
+        <Text style={[styles.sectionCount, { color: "#EF4444" }]}>
+          {showAllCritical ? "View Less" : "View All"}
+        </Text>
+      </TouchableOpacity>
+    </View>
+
+    {(showAllCritical ? criticalAlerts : criticalAlerts.slice(0, 5)).map(alert =>
+      renderAlertItem(alert)
+    )}
+  </View>
+)}
+
+
+
+    {/* Warning Alerts Section */}
+{warningAlerts.length > 0 && filter !== "info" && filter !== "critical" && (
+  <View style={styles.section}>
+    <View style={styles.sectionHeader}>
+      <View style={styles.sectionTitleContainer}>
+        <Shield size={20} color="#F59E0B" />
+        <Text style={[styles.sectionTitle, { color: '#F59E0B', marginLeft: 8 }]}>
+          Warning Alerts
+        </Text>
+      </View>
+
+      <TouchableOpacity onPress={() => setShowAllWarning(!showAllWarning)}>
+        <Text style={styles.sectionCount}>
+          {showAllWarning ? "View Less" : "View All"}
+        </Text>
+      </TouchableOpacity>
+    </View>
+
+    {(showAllWarning ? warningAlerts : warningAlerts.slice(0, 5))
+      .map(alert => renderAlertItem(alert))}
+  </View>
+)}
+
+     {/* Filtered Alerts View */}
+<View style={styles.section}>
+  <View style={styles.sectionHeader}>
+    <View style={styles.sectionTitleContainer}>
+      <Bell size={20} color="#6B7280" />
+      <Text style={styles.sectionTitle}>
+        {filter === "all" ? "All Alerts" :
+          filter === "critical" ? "Critical Alerts" :
+          filter === "warning" ? "Warning Alerts" : "Info Alerts"}
+      </Text>
+    </View>
+
+    <TouchableOpacity onPress={() => setShowAllFiltered(!showAllFiltered)}>
+      <Text style={styles.sectionCount}>
+        {showAllFiltered ? "View Less" : "View All"}
+      </Text>
+    </TouchableOpacity>
+  </View>
+
+  {filteredData.length === 0 ? (
+    <View style={styles.emptyState}>
+      <Bell size={48} color="#D1D5DB" />
+      <Text style={styles.emptyTitle}>No alerts found</Text>
+      <Text style={styles.emptySubtitle}>
+        {filter === "all"
+          ? "All systems are operating normally"
+          : `No ${filter} alerts at this time`}
+      </Text>
+    </View>
+  ) : (
+    (showAllFiltered ? filteredData : filteredData.slice(0, 5))
+      .map(alert => renderAlertItem(alert))
+  )}
+</View>
+
 
       {/* Footer */}
       <View style={styles.footer}>

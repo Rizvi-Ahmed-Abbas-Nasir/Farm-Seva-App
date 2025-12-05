@@ -240,7 +240,7 @@ export default function EnvironmentScreen() {
         },
       ];
     } catch (error) {
-      console.error('Sensor fetch failed, using mock data');
+      // console.error('Sensor fetch failed, using mock data');
       // Return mock data for demo
       return getMockSensorData();
     }
@@ -254,7 +254,6 @@ export default function EnvironmentScreen() {
         throw new Error('No internet connection');
       }
 
-      // Fetch current weather with 5-day forecast for Bhopal, MP
       const response = await fetch(
         `${WEATHER_API_URL}/forecast.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(LOCATION)}&days=5&aqi=no`
       );
@@ -265,7 +264,6 @@ export default function EnvironmentScreen() {
 
       const data = await response.json();
 
-      // Parse weather data from weatherapi.com response
       return {
         temperature: data.current.temp_c,
         humidity: data.current.humidity,
@@ -289,19 +287,16 @@ export default function EnvironmentScreen() {
   };
 
   const processEnvironmentMetrics = (sensors: SensorLocation[]): EnvironmentMetric[] => {
-    // Calculate averages
     const avgTemp = sensors.reduce((sum, s) => sum + s.temperature, 0) / sensors.length;
     const avgHumidity = sensors.reduce((sum, s) => sum + s.humidity, 0) / sensors.length;
     const avgAirQuality = sensors.reduce((sum, s) => sum + s.airQuality, 0) / sensors.length;
 
-    // Determine status based on thresholds
     const getStatus = (value: number, min: number, max: number): 'normal' | 'warning' | 'critical' => {
       if (value < min || value > max) return 'critical';
       if (value < min + 2 || value > max - 2) return 'warning';
       return 'normal';
     };
 
-    // Get thresholds for the majority animal type
     const pigCount = sensors.filter(s => s.type === 'pig').length;
     const poultryCount = sensors.filter(s => s.type === 'poultry').length;
     const thresholds = pigCount >= poultryCount ? THRESHOLDS.pig : THRESHOLDS.poultry;
@@ -424,7 +419,7 @@ export default function EnvironmentScreen() {
           data: { category },
           sound: true,
         },
-        trigger: null, // Send immediately
+        trigger: null, 
       });
       
       console.log(`Notification sent: ${title}`);
@@ -434,7 +429,6 @@ export default function EnvironmentScreen() {
   };
 
   const getWeatherIcon = (weatherCode: number) => {
-    // WeatherAPI.com condition codes mapping
     if (weatherCode === 1000) return 'sun'; // Sunny/Clear
     if (weatherCode === 1003 || weatherCode === 1006) return 'cloud-sun'; // Partly cloudy
     if (weatherCode === 1009 || weatherCode === 1030) return 'cloud'; // Cloudy/Overcast
@@ -659,8 +653,17 @@ export default function EnvironmentScreen() {
         </View>
       )}
 
-      {/* Environment Metrics */}
-      <View style={styles.gridContainer}>
+<Text style={{ 
+  fontSize: 18, 
+  fontWeight: '600', 
+  marginVertical: 10, 
+  marginLeft: 4,
+      paddingHorizontal: 16,
+
+  color: '#374151'
+}}>
+   From Sensors
+</Text>      <View style={styles.gridContainer}>
         {environmentData.map((data) => (
           <TouchableOpacity 
             key={data.id} 
