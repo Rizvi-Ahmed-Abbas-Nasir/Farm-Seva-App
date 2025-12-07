@@ -11,13 +11,13 @@ import {
   Switch,
   Modal,
 } from 'react-native';
-import { 
-  Thermometer, 
-  Droplets, 
-  Wind, 
-  Sun, 
-  Zap, 
-  Eye, 
+import {
+  Thermometer,
+  Droplets,
+  Wind,
+  Sun,
+  Zap,
+  Eye,
   AlertTriangle,
   Bell,
   MapPin,
@@ -154,7 +154,7 @@ export default function EnvironmentScreen() {
   const loadAllData = async () => {
     try {
       setLoading(true);
-      
+
       // Load from multiple sources
       const [sensorData, weatherInfo] = await Promise.allSettled([
         fetchSensorData(),
@@ -166,7 +166,7 @@ export default function EnvironmentScreen() {
         setSensorLocations(sensorData.value);
         const metrics = processEnvironmentMetrics(sensorData.value);
         setEnvironmentData(metrics);
-        
+
         // Check thresholds and send notifications if enabled
         if (notificationsEnabled) {
           checkThresholdsAndNotify(metrics);
@@ -176,7 +176,7 @@ export default function EnvironmentScreen() {
       // Process weather data
       if (weatherInfo.status === 'fulfilled') {
         setWeatherData(weatherInfo.value);
-        
+
         // Check weather alerts
         if (weatherInfo.value.alerts.length > 0 && notificationsEnabled) {
           sendWeatherAlert(weatherInfo.value.alerts[0]);
@@ -197,13 +197,13 @@ export default function EnvironmentScreen() {
     try {
       // In production: Replace with actual sensor API
       const response = await fetch('YOUR_SENSOR_API_ENDPOINT');
-      
+
       if (!response.ok) {
         throw new Error('Sensor API failed');
       }
-      
+
       const data = await response.json();
-      
+
       // Mock data for demo (remove in production)
       return [
         {
@@ -271,8 +271,8 @@ export default function EnvironmentScreen() {
         condition: data.current.condition.text,
         icon: getWeatherIcon(data.current.condition.code),
         forecast: data.forecast.forecastday.map((day: any, index: number) => ({
-          day: index === 0 
-            ? 'Today' 
+          day: index === 0
+            ? 'Today'
             : new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }),
           temp: Math.round(day.day.avgtemp_c),
           condition: day.day.condition.text
@@ -380,7 +380,7 @@ export default function EnvironmentScreen() {
   const checkThresholdsAndNotify = async (metrics: EnvironmentMetric[]) => {
     for (const metric of metrics) {
       const setting = notificationSettings.find(s => s.id === metric.id);
-      
+
       if (setting && setting.enabled) {
         if (metric.status === 'critical') {
           await sendNotification(
@@ -419,9 +419,9 @@ export default function EnvironmentScreen() {
           data: { category },
           sound: true,
         },
-        trigger: null, 
+        trigger: null,
       });
-      
+
       console.log(`Notification sent: ${title}`);
     } catch (error) {
       console.error('Failed to send notification:', error);
@@ -503,9 +503,9 @@ export default function EnvironmentScreen() {
   };
 
   const toggleNotificationSetting = (id: string) => {
-    setNotificationSettings(prev => 
-      prev.map(setting => 
-        setting.id === id 
+    setNotificationSettings(prev =>
+      prev.map(setting =>
+        setting.id === id
           ? { ...setting, enabled: !setting.enabled }
           : setting
       )
@@ -574,8 +574,8 @@ export default function EnvironmentScreen() {
   }
 
   return (
-    <ScrollView 
-      style={styles.container} 
+    <ScrollView
+      style={styles.container}
       showsVerticalScrollIndicator={false}
       refreshControl={
         <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
@@ -587,7 +587,7 @@ export default function EnvironmentScreen() {
           <Text style={styles.title}>Environment Monitor</Text>
           <Text style={styles.subtitle}>Real-time farm conditions</Text>
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.settingsButton}
           onPress={() => setSettingsModalVisible(true)}
         >
@@ -616,7 +616,7 @@ export default function EnvironmentScreen() {
               <Text style={styles.weatherConditionText}>{weatherData.condition}</Text>
             </View>
           </View>
-          
+
           <View style={styles.weatherStats}>
             <View style={styles.weatherStat}>
               <Thermometer size={20} color="#EF4444" />
@@ -653,20 +653,20 @@ export default function EnvironmentScreen() {
         </View>
       )}
 
-<Text style={{ 
-  fontSize: 18, 
-  fontWeight: '600', 
-  marginVertical: 10, 
-  marginLeft: 4,
-      paddingHorizontal: 16,
+      <Text style={{
+        fontSize: 18,
+        fontWeight: '600',
+        marginVertical: 10,
+        marginLeft: 4,
+        paddingHorizontal: 16,
 
-  color: '#374151'
-}}>
-   From Sensors
-</Text>      <View style={styles.gridContainer}>
+        color: '#374151'
+      }}>
+        From Sensors
+      </Text>      <View style={styles.gridContainer}>
         {environmentData.map((data) => (
-          <TouchableOpacity 
-            key={data.id} 
+          <TouchableOpacity
+            key={data.id}
             style={styles.environmentCard}
             onPress={() => Alert.alert(
               data.label,
@@ -791,7 +791,7 @@ export default function EnvironmentScreen() {
               </View>
             ))}
 
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.modalButton}
               onPress={() => setSettingsModalVisible(false)}
             >
@@ -807,86 +807,99 @@ export default function EnvironmentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F0F4F8',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F0F4F8',
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: '#64748B',
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 20,
+    paddingHorizontal: 24,
     paddingTop: 60,
+    paddingBottom: 28,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 6,
+    marginBottom: 20,
   },
   title: {
-    fontSize: 28,
-    fontFamily: 'Inter-Bold',
-    color: '#111827',
-    marginBottom: 4,
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 6,
+    letterSpacing: -0.8,
   },
   subtitle: {
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    color: '#64748B',
+    fontWeight: '600',
   },
   settingsButton: {
-    padding: 8,
+    padding: 12,
+    borderRadius: 16,
+    backgroundColor: '#F1F5F9',
   },
   lastUpdatedContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    backgroundColor: '#E0E7FF',
+    borderRadius: 24,
+    marginHorizontal: 20,
+    marginBottom: 16,
   },
   lastUpdatedText: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: '#4338CA',
     marginLeft: 8,
   },
   weatherCard: {
     backgroundColor: '#FFFFFF',
-    margin: 16,
-    borderRadius: 16,
-    padding: 20,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 28,
+    padding: 24,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    borderColor: '#E0E7FF',
   },
   weatherHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   weatherLocation: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   weatherLocationText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0F172A',
     marginLeft: 8,
   },
   weatherCondition: {
@@ -895,291 +908,342 @@ const styles = StyleSheet.create({
   },
   weatherConditionText: {
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: '#64748B',
     marginLeft: 8,
   },
   weatherStats: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   weatherStat: {
     alignItems: 'center',
     flex: 1,
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 16,
+    borderRadius: 20,
+    marginHorizontal: 4,
   },
   weatherValue: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
-    color: '#111827',
-    marginTop: 8,
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginTop: 10,
     marginBottom: 4,
   },
   weatherLabel: {
     fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   forecastContainer: {
-    marginTop: 20,
-    paddingTop: 20,
-    borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    marginTop: 24,
+    paddingTop: 24,
+    borderTopWidth: 2,
+    borderTopColor: '#E2E8F0',
   },
   forecastTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
-    marginBottom: 12,
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 16,
+    letterSpacing: -0.5,
   },
   forecastRow: {
     flexDirection: 'row',
   },
   forecastDay: {
     alignItems: 'center',
-    marginRight: 20,
-    minWidth: 60,
+    marginRight: 16,
+    minWidth: 70,
+    backgroundColor: '#F8FAFC',
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 16,
   },
   forecastDayText: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
-    marginBottom: 4,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 6,
   },
   forecastTemp: {
-    fontSize: 18,
-    fontFamily: 'Inter-Bold',
-    color: '#111827',
-    marginBottom: 4,
+    fontSize: 20,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 6,
   },
   forecastCondition: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#64748B',
     textAlign: 'center',
   },
   gridContainer: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    gap: 16,
   },
   environmentCard: {
-    width: '48%',
+    width: '47%',
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 24,
+    padding: 20,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 6,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
   },
   statusIndicator: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 3,
   },
   cardValue: {
-    fontSize: 24,
-    fontFamily: 'Inter-Bold',
-    color: '#111827',
-    marginBottom: 4,
+    fontSize: 32,
+    fontWeight: '900',
+    color: '#0F172A',
+    marginBottom: 6,
+    letterSpacing: -1,
   },
   cardLabel: {
     fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#6B7280',
-    marginBottom: 4,
+    fontWeight: '700',
+    color: '#475569',
+    marginBottom: 8,
   },
   cardTrend: {
     fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#9CA3AF',
+    fontWeight: '600',
+    color: '#64748B',
   },
   section: {
     backgroundColor: '#FFFFFF',
-    margin: 16,
-    marginTop: 8,
-    borderRadius: 16,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 16,
+    borderRadius: 28,
+    padding: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 5,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
   },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 20,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.8,
   },
   sectionCount: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontWeight: '700',
+    color: '#6366F1',
+    backgroundColor: '#E0E7FF',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   locationItem: {
-    paddingVertical: 16,
+    paddingVertical: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    marginBottom: 12,
   },
   locationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 16,
   },
   locationName: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   locationTypeBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
   },
   locationTypeText: {
-    fontSize: 12,
-    fontFamily: 'Inter-SemiBold',
+    fontSize: 13,
+    fontWeight: '800',
   },
   locationReadings: {
     flexDirection: 'row',
-    gap: 20,
+    gap: 24,
   },
   reading: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   readingValue: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#475569',
   },
   recommendationItem: {
     flexDirection: 'row',
-    marginBottom: 16,
-    paddingBottom: 16,
+    marginBottom: 20,
+    paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E2E8F0',
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
+    padding: 16,
   },
   recommendationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
   recommendationContent: {
     flex: 1,
   },
   recommendationTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
-    marginBottom: 4,
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
+    marginBottom: 8,
   },
   recommendationDescription: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-    lineHeight: 20,
+    fontWeight: '600',
+    color: '#64748B',
+    lineHeight: 22,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
     maxHeight: '80%',
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   modalTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
-    color: '#111827',
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#0F172A',
+    letterSpacing: -0.5,
   },
   modalClose: {
-    fontSize: 24,
-    color: '#6B7280',
+    fontSize: 28,
+    color: '#64748B',
     padding: 4,
+    fontWeight: '700',
   },
   notificationToggle: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 24,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    paddingBottom: 24,
+    borderBottomWidth: 2,
+    borderBottomColor: '#E2E8F0',
   },
   notificationToggleContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
   },
   notificationToggleTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
+    fontSize: 17,
+    fontWeight: '800',
+    color: '#0F172A',
   },
   notificationToggleSubtitle: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-    marginTop: 2,
+    fontWeight: '600',
+    color: '#64748B',
+    marginTop: 4,
   },
   notificationSetting: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingVertical: 8,
+    marginBottom: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8FAFC',
+    borderRadius: 16,
   },
   notificationSettingLabel: {
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
-    color: '#111827',
+    fontWeight: '700',
+    color: '#0F172A',
   },
   modalButton: {
-    backgroundColor: '#3B82F6',
-    borderRadius: 12,
-    paddingVertical: 16,
+    backgroundColor: '#6366F1',
+    borderRadius: 20,
+    paddingVertical: 18,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 24,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   modalButtonText: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontSize: 17,
+    fontWeight: '800',
     color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
 });

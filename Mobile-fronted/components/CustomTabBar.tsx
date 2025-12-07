@@ -44,7 +44,10 @@ interface ExtraButton {
 }
 
 interface CustomTabBarProps {
-  state: { index: number };
+  state: {
+    index: number;
+    routes: Array<{ name: string; key: string }>;
+  };
 }
 
 export default function CustomTabBar({ state }: CustomTabBarProps) {
@@ -55,38 +58,41 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
   const rotation = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
 
+  // Get current route name
+  const currentRouteName = state.routes[state.index]?.name || 'index';
+
   const extraButtons: ExtraButton[] = [
-    { 
-      icon: Activity, 
-      route: "/(tabs)/health", 
+    {
+      icon: Activity,
+      route: "/(tabs)/health",
       label: "Health",
       color: "#EF4444",
       gradient: ["#FEE2E2", "#EF4444"]
     },
-    { 
-      icon: Wheat, 
-      route: "/(tabs)/feed", 
+    {
+      icon: Wheat,
+      route: "/(tabs)/feed",
       label: "Feed",
       color: "#F59E0B",
       gradient: ["#FEF3C7", "#F59E0B"]
     },
-    { 
-      icon: Thermometer, 
-      route: "/(tabs)/environment", 
+    {
+      icon: Thermometer,
+      route: "/(tabs)/environment",
       label: "Environment",
       color: "#3B82F6",
       gradient: ["#DBEAFE", "#3B82F6"]
     },
-    { 
-      icon: CheckSquare, 
-      route: "/(tabs)/tasks", 
+    {
+      icon: CheckSquare,
+      route: "/(tabs)/tasks",
       label: "Tasks",
       color: "#8B5CF6",
       gradient: ["#EDE9FE", "#8B5CF6"]
     },
-    { 
-      icon: Bell, 
-      route: "/(tabs)/alerts", 
+    {
+      icon: Bell,
+      route: "/(tabs)/alerts",
       label: "Alerts",
       color: "#EC4899",
       gradient: ["#FCE7F3", "#EC4899"]
@@ -96,7 +102,7 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
   const toggleExpand = () => {
     const newExpanded = !expanded;
     setExpanded(newExpanded);
-    
+
     Animated.parallel([
       Animated.timing(rotation, {
         toValue: newExpanded ? 1 : 0,
@@ -128,9 +134,9 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
     icon: React.ComponentType<any>,
     label: string,
     route: TabRoute,
-    index: number
+    routeName: string
   ) => {
-    const isActive = state.index === index;
+    const isActive = currentRouteName === routeName;
     const Icon = icon;
 
     return (
@@ -146,9 +152,9 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
           {isActive && (
             <View style={styles.activeIndicator} />
           )}
-          <Icon 
-            size={26} 
-            color={isActive ? "#10B981" : "#6B7280"} 
+          <Icon
+            size={26}
+            color={isActive ? "#10B981" : "#6B7280"}
             strokeWidth={isActive ? 2.5 : 2}
           />
         </View>
@@ -187,8 +193,8 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
       <View style={styles.container}>
         <View style={styles.topBorder} />
 
-        {renderTab(BarChart3, "Dashboard", "/(tabs)", 0)}
-        {renderTab(Activity, "Health", "/(tabs)/health", 1)}
+        {renderTab(BarChart3, "Dashboard", "/(tabs)", "index")}
+        {renderTab(Activity, "Health", "/(tabs)/health", "health")}
 
         <View style={styles.middleButtonWrapper}>
           {extraButtons.map((btn, i) => {
@@ -267,7 +273,7 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
             >
               {/* Gradient background */}
               <View style={styles.middleButtonGradient} />
-              
+
               {/* Rotating logo */}
               <Animated.View
                 style={{
@@ -305,8 +311,8 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
           </Animated.View>
         </View>
 
-        {renderTab(Menu, "Options", "/(tabs)/options", 2)}
-        {renderTab(User, "Profile", "/(tabs)/profile", 3)}
+        {renderTab(Menu, "Options", "/(tabs)/options", "options")}
+        {renderTab(User, "Profile", "/(tabs)/profile", "profile")}
       </View>
     </View>
   );

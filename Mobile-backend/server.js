@@ -11,6 +11,7 @@ import profileRoutes from "./routes/profileRoutes.js";
 import riskRoutes from "./routes/riskRoutes.js";
 import vaccinationRoutes from "./routes/vaccinationRoutes.js";
 import checkupRoutes from "./routes/checkupRoutes.js";
+import scheduleRoutes from "./routes/scheduleRoutes.js";
 
 const app = express();
 
@@ -30,6 +31,7 @@ app.use("/profile", profileRoutes);
 app.use("/risk", riskRoutes);
 app.use("/vaccinations", vaccinationRoutes);
 app.use("/checkups", checkupRoutes);
+app.use("/schedules", scheduleRoutes);
 
 app.listen(process.env.PORT || 5000, () =>
   console.log("Backend running on port " + process.env.PORT)

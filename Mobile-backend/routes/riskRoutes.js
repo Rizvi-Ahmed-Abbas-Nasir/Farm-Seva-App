@@ -4,10 +4,11 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import { supabase } from "../config/supabaseClient.js";
+import { userAuth } from "../middleware/userAuth.js";
 
 const router = express.Router();
 
-router.post("/assess", async (req, res) => {
+router.post("/assess", userAuth, async (req, res) => {
     try {
         const formData = req.body;
         const apiKey = process.env.GEMINI_API_KEY;
@@ -16,8 +17,11 @@ router.post("/assess", async (req, res) => {
             return res.status(500).json({ message: "Gemini API key not configured" });
         }
 
+        // Get farmer_id from authenticated user
+        const farmerId = req.user.id;
+
         const prompt = `
-      Analyze the following farm data and provide a risk assessment score (0-100) and an overview.
+      Analyze the following farm data and provide a comprehensive risk assessment with both overall and category-specific scores (0-100).
       
       Farm Details:
       Name: ${formData.farmName}
@@ -54,7 +58,11 @@ router.post("/assess", async (req, res) => {
         "overview": "<A summary paragraph>",
         "criticalCount": <number of critical issues identified>,
         "warningCount": <number of warning issues identified>,
-        "recommendations": ["<rec1>", "<rec2>", ...]
+        "recommendations": ["<rec1>", "<rec2>", ...],
+        "biosecurityScore": <number 0-100 based on housing, visitor control, disposal, fencing, hygiene, wild bird contact>,
+        "diseaseRiskScore": <number 0-100 based on health status, vaccination, deaths, observations - higher means more risk>,
+        "infrastructureScore": <number 0-100 based on ventilation, temp control, feed storage, water, cleaning, records>,
+        "climateRiskScore": <number 0-100 based on location climate risks for this species - higher means more risk>
       }
     `;
 
@@ -74,8 +82,6 @@ router.post("/assess", async (req, res) => {
                 }),
             }
         );
-
-
 
         const data = await response.json();
 
@@ -101,29 +107,36 @@ router.post("/assess", async (req, res) => {
                 .from('risk_assessments')
                 .insert([
                     {
-                        farm_name: formData.farmName,
-                        species: formData.species,
-                        herd_size: formData.herdSize,
-                        state: formData.state,
-                        district: formData.district,
-                        form_data: formData, // Store full form data as JSON
-                        risk_score: result.overallScore,
-                        risk_level: result.overallLevel,
-                        overview: result.overview,
-                        recommendations: result.recommendations,
-                        critical_count: result.criticalCount,
-                        warning_count: result.warningCount
+                        farmer_id: farmerId, // From authenticated user
+                        form_answers: formData, // Store full form data as JSONB
+                        biosecurity_score: result.biosecurityScore || 0,
+                        disease_risk_score: result.diseaseRiskScore || 0,
+                        infrastructure_score: result.infrastructureScore || 0,
+                        climate_risk_score: result.climateRiskScore || 0,
+                        overall_score: result.overallScore || 0,
+                        summary: result.overview || '',
+                        recommendations: JSON.stringify(result.recommendations || [])
                     }
                 ])
                 .select();
 
             if (dbError) {
                 console.error("Supabase Error:", dbError);
-                // We still return the result to the user even if saving fails, but maybe warn them?
-                // For now, just log it.
+                return res.status(500).json({
+                    message: "Failed to save assessment to database",
+                    error: dbError,
+                    result: result // Still return the AI result
+                });
             }
 
-            res.json({ ...result, savedId: savedData?.[0]?.id });
+            res.json({
+                ...result,
+                savedId: savedData?.[0]?.id,
+                biosecurityScore: result.biosecurityScore,
+                diseaseRiskScore: result.diseaseRiskScore,
+                infrastructureScore: result.infrastructureScore,
+                climateRiskScore: result.climateRiskScore
+            });
         } catch (e) {
             console.error("JSON Parse Error:", e);
             res.status(500).json({ message: "Failed to parse AI response", raw: textResponse });

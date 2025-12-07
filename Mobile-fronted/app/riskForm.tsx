@@ -14,6 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Save, AlertTriangle, CheckCircle } from 'lucide-react-native';
 import axios from 'axios';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -51,8 +52,21 @@ export default function RiskForm() {
     const handleSubmit = async () => {
         setLoading(true);
         try {
+            // Get auth token from AsyncStorage
+            const token = await AsyncStorage.getItem('userToken');
+
+            if (!token) {
+                Alert.alert('Error', 'Please log in to submit a risk assessment');
+                setLoading(false);
+                return;
+            }
+
             // Send data to backend to process with Gemini
-            const response = await axios.post(`${API_URL}/risk/assess`, formData);
+            const response = await axios.post(`${API_URL}/risk/assess`, formData, {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
 
             if (response.data) {
                 // Show success message

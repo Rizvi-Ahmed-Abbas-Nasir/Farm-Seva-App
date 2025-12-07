@@ -17,12 +17,15 @@ import {
   ChevronRight,
   TrendingUp,
   Bell,
-  Stethoscope
+  Stethoscope,
+  Sparkles
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { ScheduleGenerator } from '@/components/ScheduleGenerator';
+import { CountdownTimer } from '@/components/CountdownTimer';
 
 type Severity = 'high' | 'medium' | 'low';
 
@@ -43,6 +46,7 @@ interface Vaccination {
   administration_method: string;
   notes: string;
   created_at: string;
+  schedule_type?: string;
 }
 
 interface Checkup {
@@ -55,6 +59,7 @@ interface Checkup {
   notes: string;
   created_at: string;
   status?: string;
+  schedule_type?: string;
 }
 
 interface FormattedVaccination {
@@ -67,6 +72,7 @@ interface FormattedVaccination {
   scheduled_date: string;
   species: string;
   notes: string;
+  isAuto?: boolean;
 }
 
 interface FormattedCheckup {
@@ -79,6 +85,7 @@ interface FormattedCheckup {
   scheduled_date: string;
   species: string;
   notes: string;
+  isAuto?: boolean;
 }
 
 interface HealthStats {
@@ -111,6 +118,10 @@ export default function HealthScreen() {
     avgTemperature: 37.2,
     vaccinatedPercentage: 85
   });
+  const [showVaccinationGenerator, setShowVaccinationGenerator] = useState(false);
+  const [showCheckupGenerator, setShowCheckupGenerator] = useState(false);
+  const [nextVaccinationDate, setNextVaccinationDate] = useState<Date | null>(null);
+  const [nextCheckupDate, setNextCheckupDate] = useState<Date | null>(null);
 
   // Mock health alerts
   const healthAlerts: HealthAlert[] = [
@@ -242,7 +253,8 @@ export default function HealthScreen() {
               icon: getEmoji(vaccination.species),
               scheduled_date: vaccination.scheduled_date,
               species: vaccination.species,
-              notes: vaccination.notes
+              notes: vaccination.notes,
+              isAuto: vaccination.schedule_type === 'auto'
             };
           });
 
@@ -257,6 +269,20 @@ export default function HealthScreen() {
 
         console.log('🎯 Formatted vaccinations:', filteredFormattedVaccinations);
         setUpcomingVaccinations(filteredFormattedVaccinations);
+
+        // Calculate next vaccination date (5 days from the latest upcoming vaccination)
+        if (filteredFormattedVaccinations.length > 0) {
+          const latestVaccination = filteredFormattedVaccinations[filteredFormattedVaccinations.length - 1];
+          const latestDate = new Date(latestVaccination.scheduled_date);
+          const nextDate = new Date(latestDate);
+          nextDate.setDate(nextDate.getDate() + 5);
+          setNextVaccinationDate(nextDate);
+        } else {
+          // If no vaccinations, set next to 5 days from now
+          const nextDate = new Date();
+          nextDate.setDate(nextDate.getDate() + 5);
+          setNextVaccinationDate(nextDate);
+        }
 
         // Update stats based on data
         if (result.data.length > 0) {
@@ -411,11 +437,26 @@ export default function HealthScreen() {
               icon: c.species === 'pig' ? '🐷' : '🐔',
               scheduled_date: c.scheduled_date,
               species: c.species,
-              notes: c.notes
+              notes: c.notes,
+              isAuto: c.schedule_type === 'auto'
             };
           });
 
         setUpcomingCheckups(formattedCheckups);
+
+        // Calculate next checkup date (7 days from the latest checkup or from now)
+        if (formattedCheckups.length > 0) {
+          const latestCheckup = formattedCheckups[formattedCheckups.length - 1];
+          const latestDate = new Date(latestCheckup.scheduled_date);
+          const nextDate = new Date(latestDate);
+          nextDate.setDate(nextDate.getDate() + 7);
+          setNextCheckupDate(nextDate);
+        } else {
+          // If no checkups, set next to 7 days from now
+          const nextDate = new Date();
+          nextDate.setDate(nextDate.getDate() + 7);
+          setNextCheckupDate(nextDate);
+        }
       }
     } catch (error) {
       console.error('Error fetching checkups:', error);
@@ -544,12 +585,34 @@ export default function HealthScreen() {
             <View style={styles.sectionIconBg}>
               <Calendar size={18} color="#3B82F6" />
             </View>
-            <Text style={styles.sectionTitle}>Vaccination Schedule</Text>
+            <View>
+              <Text style={styles.sectionTitle}>Vaccination Schedule</Text>
+              <Text style={styles.healthLabel}>Health</Text>
+            </View>
           </View>
-          <TouchableOpacity onPress={() => router.push('/vaccination')}>
-            <Text style={styles.seeAllText}>See All</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.autoScheduleButton}
+              onPress={() => setShowVaccinationGenerator(true)}
+            >
+              <Sparkles size={14} color="#3B82F6" />
+              <Text style={styles.autoScheduleText}>Auto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/vaccination')}>
+              <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Countdown Timer for Next Vaccination */}
+        {nextVaccinationDate && (
+          <CountdownTimer
+            targetDate={nextVaccinationDate}
+            label="Next Vaccination In"
+            color="#3B82F6"
+            backgroundColor="#EFF6FF"
+          />
+        )}
 
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -588,7 +651,15 @@ export default function HealthScreen() {
                     <Text style={styles.emojiText}>{vaccination.icon}</Text>
                   </View>
                   <View style={styles.vaccinationContent}>
-                    <Text style={styles.vaccinationAnimal}>{vaccination.animal}</Text>
+                    <View style={styles.titleRow}>
+                      <Text style={styles.vaccinationAnimal}>{vaccination.animal}</Text>
+                      {vaccination.isAuto && (
+                        <View style={styles.autoBadge}>
+                          <Sparkles size={10} color="#3B82F6" />
+                          <Text style={styles.autoBadgeText}>Auto</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.vaccinationVaccine}>{vaccination.vaccine}</Text>
                     <View style={styles.dateRow}>
                       <Calendar size={12} color="#6B7280" />
@@ -628,12 +699,34 @@ export default function HealthScreen() {
             <View style={[styles.sectionIconBg, { backgroundColor: '#D1FAE5' }]}>
               <Stethoscope size={18} color="#059669" />
             </View>
-            <Text style={styles.sectionTitle}>Animal Checkups</Text>
+            <View>
+              <Text style={styles.sectionTitle}>Animal Checkups</Text>
+              <Text style={styles.healthLabel}>Health</Text>
+            </View>
           </View>
-          <TouchableOpacity onPress={() => router.push('/checkup')}>
-            <Text style={styles.seeAllText}>See All</Text>
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={[styles.autoScheduleButton, { borderColor: '#10B981' }]}
+              onPress={() => setShowCheckupGenerator(true)}
+            >
+              <Sparkles size={14} color="#10B981" />
+              <Text style={[styles.autoScheduleText, { color: '#10B981' }]}>Auto</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.push('/checkup')}>
+              <Text style={styles.seeAllText}>See All</Text>
+            </TouchableOpacity>
+          </View>
         </View>
+
+        {/* Countdown Timer for Next Checkup */}
+        {nextCheckupDate && (
+          <CountdownTimer
+            targetDate={nextCheckupDate}
+            label="Next Checkup In"
+            color="#10B981"
+            backgroundColor="#D1FAE5"
+          />
+        )}
 
         {loading ? (
           <ActivityIndicator size="small" color="#10B981" />
@@ -663,7 +756,15 @@ export default function HealthScreen() {
                   <Text style={styles.emojiText}>{checkup.icon}</Text>
                 </View>
                 <View style={styles.vaccinationContent}>
-                  <Text style={styles.vaccinationAnimal}>{checkup.animal_name}</Text>
+                  <View style={styles.titleRow}>
+                    <Text style={styles.vaccinationAnimal}>{checkup.animal_name}</Text>
+                    {checkup.isAuto && (
+                      <View style={[styles.autoBadge, { backgroundColor: '#D1FAE5', borderColor: '#10B981' }]}>
+                        <Sparkles size={10} color="#10B981" />
+                        <Text style={[styles.autoBadgeText, { color: '#10B981' }]}>Auto</Text>
+                      </View>
+                    )}
+                  </View>
                   <Text style={styles.vaccinationVaccine}>{checkup.type}</Text>
                   <View style={styles.dateRow}>
                     <Calendar size={12} color="#6B7280" />
@@ -773,6 +874,26 @@ export default function HealthScreen() {
       </View>
 
       <View style={styles.bottomPadding} />
+
+      {/* Schedule Generators */}
+      <ScheduleGenerator
+        visible={showVaccinationGenerator}
+        onClose={() => setShowVaccinationGenerator(false)}
+        onSuccess={() => {
+          fetchVaccinations();
+          fetchCheckups();
+        }}
+        type="vaccination"
+      />
+      <ScheduleGenerator
+        visible={showCheckupGenerator}
+        onClose={() => setShowCheckupGenerator(false)}
+        onSuccess={() => {
+          fetchVaccinations();
+          fetchCheckups();
+        }}
+        type="checkup"
+      />
     </ScrollView>
   );
 }
@@ -941,11 +1062,34 @@ const styles = StyleSheet.create({
   vaccinationContent: {
     flex: 1,
   },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 2,
+  },
+  autoBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: '#EFF6FF',
+    borderWidth: 1,
+    borderColor: '#3B82F6',
+  },
+  autoBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#3B82F6',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
   vaccinationAnimal: {
     fontSize: 15,
     fontWeight: '700',
     color: '#111827',
-    marginBottom: 2,
   },
   vaccinationVaccine: {
     fontSize: 13,
@@ -1116,5 +1260,34 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginBottom: 12,
     fontStyle: 'italic',
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  autoScheduleButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#3B82F6',
+    backgroundColor: '#EFF6FF',
+  },
+  autoScheduleText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#3B82F6',
+  },
+  healthLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981',
+    marginTop: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
 });

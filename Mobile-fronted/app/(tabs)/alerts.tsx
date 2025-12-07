@@ -2,36 +2,40 @@ import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
+  StyleSheet,
   ScrollView,
   TouchableOpacity,
-  StyleSheet,
-  ActivityIndicator,
   RefreshControl,
   Alert,
+  Dimensions,
+  ActivityIndicator,
 } from "react-native";
 import {
   AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  Activity,
   Shield,
+  AlertCircle,
+  Syringe,
+  BarChart2,
+  ChevronRight,
+  Filter,
+  Info,
+  Thermometer,
+  Heart,
   Bell,
+  Calendar,
   Clock,
   MapPin,
-  TrendingUp,
-  AlertCircle,
-  Filter,
-  Download,
   Eye,
-  Thermometer,
-  Syringe,
-  Heart,
-  Activity,
-  ChevronRight,
-  Calendar,
-  BarChart2
+  Download,
 } from "lucide-react-native";
 import { useNavigation } from "@react-navigation/native";
 import { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import { router, useLocalSearchParams } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 import Papa from "papaparse";
+import { LinearGradient } from 'expo-linear-gradient';
 
 export interface AlertItem {
   Type: string;
@@ -188,6 +192,7 @@ const fetchDataFromGoogleSheets = async (): Promise<AlertItem[]> => {
 
 const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
   const navigation = useNavigation<NavigationProp>();
+  const router = useRouter();
   const [data, setData] = useState<AlertData[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -949,32 +954,53 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
         </View>
 
         <View style={styles.riskGrid}>
-          {riskFactors.map((risk, index) => (
-            <View key={index} style={styles.riskCard}>
-              <View style={styles.riskCardHeader}>
-                <Text style={styles.riskIcon}>{risk.icon}</Text>
-                <Text style={styles.riskFactor}>{risk.factor}</Text>
-              </View>
+          {riskFactors.map((risk, index) => {
+            // Define gradient colors based on risk level
+            const getGradientColors = (level: string): [string, string] => {
+              const levelLower = level.toLowerCase();
+              if (levelLower.includes('critical') || levelLower.includes('poor')) {
+                return ['#EF4444', '#DC2626']; // Red
+              } else if (levelLower.includes('high') || levelLower.includes('warning') || levelLower.includes('fair')) {
+                return ['#F59E0B', '#D97706']; // Amber
+              } else if (levelLower.includes('good')) {
+                return ['#10B981', '#059669']; // Emerald
+              } else {
+                return ['#3B82F6', '#2563EB']; // Blue (Excellent/Low)
+              }
+            };
 
-              <View style={styles.riskDetails}>
-                <View style={styles.riskValues}>
-                  <Text style={styles.riskValue}>{risk.value}</Text>
-                  <Text style={styles.riskDetailsText} numberOfLines={1}>{risk.details}</Text>
-                </View>
+            const gradientColors = getGradientColors(risk.level);
 
-                <View style={styles.riskIndicators}>
-                  <View style={[styles.riskLevelBadge, { backgroundColor: `${getRiskLevelColor(risk.level)}15` }]}>
-                    <Text style={[styles.riskLevel, { color: getRiskLevelColor(risk.level) }]}>
-                      {risk.level}
-                    </Text>
+            return (
+              <View key={index} style={styles.riskCard}>
+                <LinearGradient
+                  colors={gradientColors}
+                  style={styles.riskCardGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <View style={styles.riskCardHeader}>
+                    <View style={styles.riskIconCircle}>
+                      <Text style={styles.riskIcon}>{risk.icon}</Text>
+                    </View>
                   </View>
-                  <View style={styles.trendContainer}>
-                    {getTrendIcon(risk.trend)}
+
+                  <View style={styles.riskCardContent}>
+                    <Text style={styles.riskFactor}>{risk.factor}</Text>
+                    <Text style={styles.riskValue}>{risk.value}</Text>
+                    <Text style={styles.riskDetailsText} numberOfLines={1}>{risk.details}</Text>
+
+                    <View style={styles.riskLevelBadgeContainer}>
+                      <View style={styles.riskLevelBadge}>
+                        <Text style={styles.riskLevel}>{risk.level}</Text>
+                      </View>
+                      {getTrendIcon(risk.trend)}
+                    </View>
                   </View>
-                </View>
+                </LinearGradient>
               </View>
-            </View>
-          ))}
+            );
+          })}
         </View>
 
         {/* Overall Risk Score */}
@@ -1493,26 +1519,43 @@ const styles = StyleSheet.create({
   riskCard: {
     flex: 1,
     minWidth: '48%',
-    backgroundColor: '#F9FAFB',
     borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+    overflow: 'hidden',
+  },
+  riskCardGradient: {
+    flex: 1,
     padding: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    minHeight: 160,
   },
   riskCardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 12,
-    gap: 8,
+  },
+  riskIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   riskIcon: {
     fontSize: 24,
   },
-  riskFactor: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
+  riskCardContent: {
     flex: 1,
+    justifyContent: 'space-between',
+  },
+  riskFactor: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    letterSpacing: -0.3,
   },
   riskDetails: {
     flexDirection: 'row',
@@ -1523,28 +1566,37 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   riskValue: {
-    fontSize: 16,
-    fontFamily: 'Inter-Bold',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginBottom: 4,
+    letterSpacing: -0.5,
   },
   riskDetailsText: {
     fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontWeight: '500',
+    color: 'rgba(255, 255, 255, 0.8)',
   },
   riskIndicators: {
     alignItems: 'flex-end',
     gap: 8,
   },
+  riskLevelBadgeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 12,
+  },
   riskLevelBadge: {
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   riskLevel: {
     fontSize: 12,
-    fontFamily: 'Inter-Bold',
+    fontWeight: '700',
+    color: '#FFFFFF',
   },
   trendContainer: {
     width: 24,
@@ -1555,7 +1607,7 @@ const styles = StyleSheet.create({
   stableTrend: {
     width: 16,
     height: 2,
-    backgroundColor: '#6B7280',
+    backgroundColor: 'rgba(255, 255, 255, 0.8)',
     borderRadius: 1,
   },
   overallRiskContainer: {
