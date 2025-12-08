@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-nati
 import { useRouter } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 const { width } = Dimensions.get('window');
 const COLUMN_COUNT = 2;
@@ -20,57 +21,58 @@ type ActionItem = {
     height?: number; // Optional height for specialized cards
 };
 
-const actions: ActionItem[] = [
-    {
-        id: 'checkup',
-        label: 'Add Checkup',
-        icon: 'plus-circle',
-        route: '/addCheckup',
-        colors: ['#3B82F6', '#2563EB'], // Blue
-    },
-    {
-        id: 'vaccine',
-        label: 'Vaccination',
-        icon: 'shield',
-        route: '/addVaccination',
-        colors: ['#10B981', '#059669'], // Emerald
-    },
-    {
-        id: 'schemes',
-        label: 'Gov Schemes',
-        icon: 'file-text',
-        route: '/(tabs)/govSchemes',
-        colors: ['#F59E0B', '#D97706'], // Amber
-    },
-    {
-        id: 'vet',
-        label: 'Smart Vet',
-        icon: 'activity',
-        route: '/(tabs)/smartVet',
-        colors: ['#8B5CF6', '#7C3AED'], // Violet
-    },
-    {
-        id: 'alerts',
-        label: 'Alerts',
-        icon: 'bell',
-        route: '/(tabs)/alerts',
-        colors: ['#EF4444', '#DC2626'], // Red
-    },
-    {
-        id: 'env',
-        label: 'Environment',
-        icon: 'cloud',
-        route: '/(tabs)/environment',
-        colors: ['#06B6D4', '#0891B2'], // Cyan
-    },
-];
-
 export function QuickActions() {
     const router = useRouter();
+    const { t } = useLanguage();
+
+    const actions: ActionItem[] = [
+        {
+            id: 'checkup',
+            label: t('dashboard.recordHealth'),
+            icon: 'plus-circle',
+            route: '/addCheckup',
+            colors: ['#3B82F6', '#2563EB'],
+        },
+        {
+            id: 'vaccine',
+            label: t('health.addVaccination'),
+            icon: 'shield',
+            route: '/addVaccination',
+            colors: ['#10B981', '#059669'],
+        },
+        {
+            id: 'schemes',
+            label: t('options.govSchemes'),
+            icon: 'file-text',
+            route: '/(tabs)/govSchemes',
+            colors: ['#F59E0B', '#D97706'],
+        },
+        {
+            id: 'vet',
+            label: t('options.smartVet'),
+            icon: 'activity',
+            route: '/(tabs)/smartVet',
+            colors: ['#8B5CF6', '#7C3AED'],
+        },
+        {
+            id: 'alerts',
+            label: t('tabs.alerts'),
+            icon: 'bell',
+            route: '/(tabs)/alerts',
+            colors: ['#EF4444', '#DC2626'],
+        },
+        {
+            id: 'env',
+            label: t('tabs.environment'),
+            icon: 'cloud',
+            route: '/(tabs)/environment',
+            colors: ['#06B6D4', '#0891B2'],
+        },
+    ];
 
     return (
         <View style={styles.container}>
-            <Text style={styles.sectionTitle}>Quick Actions</Text>
+            <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
             <View style={styles.grid}>
                 {actions.map((action) => (
                     <TouchableOpacity

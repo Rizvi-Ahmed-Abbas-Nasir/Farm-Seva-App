@@ -3,6 +3,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 
 export default function RootLayout() {
   const [loading, setLoading] = useState(true);
@@ -25,7 +26,7 @@ export default function RootLayout() {
   }, []);
 
   return (
-    <>
+    <LanguageProvider>
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="splash" />
         <Stack.Screen name="auth" />
@@ -33,6 +34,6 @@ export default function RootLayout() {
         <Stack.Screen name="+not-found" />
       </Stack>
       <StatusBar style="auto" />
-    </>
+    </LanguageProvider>
   );
 }

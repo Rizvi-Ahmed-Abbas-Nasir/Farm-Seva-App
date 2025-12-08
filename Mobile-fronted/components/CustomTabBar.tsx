@@ -19,6 +19,7 @@ import {
   Menu,
 } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 
 type TabRoute =
@@ -51,6 +52,7 @@ interface CustomTabBarProps {
 }
 
 export default function CustomTabBar({ state }: CustomTabBarProps) {
+  const { t } = useLanguage();
   const [expanded, setExpanded] = useState(false);
   const router = useRouter();
   const radius = 110;
@@ -193,8 +195,8 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
       <View style={styles.container}>
         <View style={styles.topBorder} />
 
-        {renderTab(BarChart3, "Dashboard", "/(tabs)", "index")}
-        {renderTab(Activity, "Health", "/(tabs)/health", "health")}
+        {renderTab(BarChart3, t('tabs.dashboard'), "/(tabs)", "index")}
+        {renderTab(Activity, t('tabs.health'), "/(tabs)/health", "health")}
 
         <View style={styles.middleButtonWrapper}>
           {extraButtons.map((btn, i) => {
@@ -311,8 +313,8 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
           </Animated.View>
         </View>
 
-        {renderTab(Menu, "Options", "/(tabs)/options", "options")}
-        {renderTab(User, "Profile", "/(tabs)/profile", "profile")}
+        {renderTab(Menu, t('tabs.options'), "/(tabs)/options", "options")}
+        {renderTab(User, t('tabs.profile'), "/(tabs)/profile", "profile")}
       </View>
     </View>
   );
@@ -321,6 +323,8 @@ export default function CustomTabBar({ state }: CustomTabBarProps) {
 const styles = StyleSheet.create({
   containerWrapper: {
     position: 'relative',
+    zIndex: 9999,
+    elevation: 30,
   },
   backdrop: {
     position: 'absolute',
@@ -329,7 +333,7 @@ const styles = StyleSheet.create({
     right: 0,
     height: 1000,
     backgroundColor: '#000',
-    zIndex: 998,
+    zIndex: 9998,
   },
   container: {
     flexDirection: "row",
@@ -345,9 +349,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: -4 },
     shadowRadius: 12,
-    elevation: 20,
+    elevation: 30,
     position: 'relative',
-    zIndex: 999,
+    zIndex: 9999,
   },
   topBorder: {
     position: 'absolute',
@@ -441,11 +445,12 @@ const styles = StyleSheet.create({
   expandedButton: {
     position: "absolute",
     alignItems: "center",
-    zIndex: 1000,
-    elevation: 15,
+    zIndex: 9999,
+    elevation: 25,
   },
   circleButtonWrapper: {
     alignItems: 'center',
+    zIndex: 10000,
   },
   circleButton: {
     width: 56,
@@ -457,7 +462,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 8,
-    elevation: 8,
+    elevation: 20,
     overflow: 'hidden',
     position: 'relative',
     borderWidth: 3,

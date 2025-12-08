@@ -2,28 +2,30 @@ import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Activity, Bell, Thermometer } from "lucide-react-native";
 import { useRouter } from "expo-router";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function OptionsScreen() {
+  const { t } = useLanguage();
   const router = useRouter();
 
   const cards = [
     {
-      title: "Smart Vet Connect",
-      desc: "Instant veterinary help and AI diagnosis.",
+      title: t('options.smartVet'),
+      desc: t('options.smartVetDesc'),
       icon: Activity,
       route: "/smartVet",
       color: "#D1FAE5",
     },
     {
-      title: "Government Schemes",
-      desc: "All latest subsidies & programs.",
+      title: t('options.govSchemes'),
+      desc: t('options.govSchemesDesc'),
       icon: Bell,
       route: "/govSchemes",
       color: "#FEE2E2",
     },
     {
-      title: "Outbreak Monitor",
-      desc: "Track diseases & alerts near you.",
+      title: t('options.outbreak'),
+      desc: t('options.outbreakDesc'),
       icon: Thermometer,
       route: "/outbreak",
       color: "#DBEAFE",
@@ -33,9 +35,9 @@ export default function OptionsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.headerContainer}>
-        <Text style={styles.header}>Smart Features</Text>
+        <Text style={styles.header}>{t('options.title')}</Text>
         <Text style={styles.subHeader}>
-          Discover government schemes for farmers
+          {t('options.subtitle')}
         </Text>
       </View>
 
@@ -102,7 +104,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowOffset: { width: 0, height: 4 },
     shadowRadius: 12,
-    elevation: 8,
+    elevation: 5,
   },
   header: {
     fontSize: 32,

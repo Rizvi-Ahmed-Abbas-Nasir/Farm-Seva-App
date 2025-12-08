@@ -3,229 +3,155 @@ import {
   View,
   Text,
   ScrollView,
-  TouchableOpacity,
   TextInput,
-  Modal,
-  Linking,
-  Alert,
-  Dimensions,
-  StatusBar,
-  SafeAreaView,
+  TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
+  SafeAreaView,
+  StatusBar,
+  Alert,
   RefreshControl,
-  FlatList
+  ActivityIndicator,
+  Dimensions,
+  Share
 } from "react-native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { WebView } from 'react-native-webview';
+import * as WebBrowser from 'expo-web-browser';
+import { Ionicons } from '@expo/vector-icons';
 import Papa from 'papaparse';
-// Expo Icons
-import { 
-  MaterialIcons,
-  FontAwesome5,
-  Ionicons
-} from '@expo/vector-icons';
 
 const { width, height } = Dimensions.get('window');
+const isSmallDevice = width < 375;
+const isLargeDevice = width > 414;
 
-// Types
 interface Scheme {
+  "Govt Scheme Name": string;
+  "Scheme Description": string;
+  "Ministry / Department Name": string;
+  "Benefits Provided": string;
+  "Eligibility Requirements": string;
+  "How To Apply": string;
+  "Required Documents": string;
+  "Website Link": string;
+  "PDF Link": string;
+  "Document Link": string;
+  "AI Overview": string;
   [key: string]: string;
 }
 
 interface AppliedScheme {
   schemeName: string;
-  status: 'applied' | 'not-applied' | 'pending';
+  status: 'applied' | 'pending' | 'not-applied';
   appliedAt: string;
   updatedAt: string;
 }
 
-interface SchemeCardProps {
-  scheme: Scheme;
-  onViewDetails: () => void;
-  isSaved: boolean;
-  onSaveToggle: () => void;
-  appliedStatus: string | null;
-}
-
-interface SchemeDetailPageProps {
-  scheme: Scheme;
-  onBack: () => void;
-  isSaved: boolean;
-  onSaveToggle: () => void;
-  appliedStatus: string | null;
-  onApplyStatusChange: (status: 'applied' | 'not-applied' | 'pending') => void;
-}
-
-// Icon Components with proper typing
-const HomeIcon = (props: any) => <MaterialIcons name="home" {...props} />;
-const SearchIcon = (props: any) => <MaterialIcons name="search" {...props} />;
-const BookmarkIcon = (props: any) => <MaterialIcons name="bookmark" {...props} />;
-const BookmarkBorderIcon = (props: any) => <MaterialIcons name="bookmark-border" {...props} />;
-const BookmarkCheckIcon = (props: any) => <MaterialIcons name="bookmark-check" {...props} />;
-const ArrowBackIcon = (props: any) => <MaterialIcons name="arrow-back" {...props} />;
-const DownloadIcon = (props: any) => <MaterialIcons name="download" {...props} />;
-const InfoIcon = (props: any) => <MaterialIcons name="info" {...props} />;
-const CalendarIcon = (props: any) => <MaterialIcons name="calendar-today" {...props} />;
-const PeopleIcon = (props: any) => <MaterialIcons name="people" {...props} />;
-const ListIcon = (props: any) => <MaterialIcons name="list" {...props} />;
-const DescriptionIcon = (props: any) => <MaterialIcons name="description" {...props} />;
-const ShieldIcon = (props: any) => <MaterialIcons name="security" {...props} />;
-const ClockIcon = (props: any) => <MaterialIcons name="access-time" {...props} />;
-const CheckIcon = (props: any) => <MaterialIcons name="check" {...props} />;
-const CloseIcon = (props: any) => <MaterialIcons name="close" {...props} />;
-const StarIcon = (props: any) => <MaterialIcons name="star" {...props} />;
-const HistoryIcon = (props: any) => <MaterialIcons name="history" {...props} />;
-const CheckCircleIcon = (props: any) => <MaterialIcons name="check-circle" {...props} />;
-const CancelIcon = (props: any) => <MaterialIcons name="cancel" {...props} />;
-const PendingIcon = (props: any) => <MaterialIcons name="pending" {...props} />;
-const OpenInNewIcon = (props: any) => <MaterialIcons name="open-in-new" {...props} />;
-const PhoneIcon = (props: any) => <MaterialIcons name="phone" {...props} />;
-const EmailIcon = (props: any) => <MaterialIcons name="email" {...props} />;
-const LocationIcon = (props: any) => <MaterialIcons name="location-on" {...props} />;
-const ChevronRightIcon = (props: any) => <MaterialIcons name="chevron-right" {...props} />;
-const FilterIcon = (props: any) => <MaterialIcons name="filter-list" {...props} />;
-const GlobeIcon = (props: any) => <FontAwesome5 name="globe" {...props} />;
-const PigIcon = (props: any) => <FontAwesome5 name="piggy-bank" {...props} />;
-const ChickenIcon = (props: any) => <FontAwesome5 name="egg" {...props} />;
-const BuildingIcon = (props: any) => <FontAwesome5 name="building" {...props} />;
-const RupeeIcon = (props: any) => <FontAwesome5 name="rupee-sign" {...props} />;
-const AwardIcon = (props: any) => <FontAwesome5 name="award" {...props} />;
-const TargetIcon = (props: any) => <Ionicons name="target" {...props} />;
-
 export default function GovtScheme() {
-const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWgAD3JxCvVeO0K4n9ncqVeyw/export?format=csv&gid=0";
+  const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWgAD3JxCvVeO0K4n9ncqVeyw/export?format=csv";
+
   const [schemes, setSchemes] = useState<Scheme[]>([]);
   const [filteredSchemes, setFilteredSchemes] = useState<Scheme[]>([]);
-  const [selectedAnimalFilter, setSelectedAnimalFilter] = useState("All");
   const [currentView, setCurrentView] = useState<"list" | "detail">("list");
   const [selectedScheme, setSelectedScheme] = useState<Scheme | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [savedSchemes, setSavedSchemes] = useState<string[]>([]);
   const [appliedSchemes, setAppliedSchemes] = useState<AppliedScheme[]>([]);
-  const [activeTab, setActiveTab] = useState("all");
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
   useEffect(() => {
-    loadData();
+    fetchCSVData();
+    loadSavedData();
   }, []);
 
-  const loadData = async () => {
+  const fetchCSVData = async () => {
     try {
-      await fetchSchemes();
-      await loadLocalData();
+      setLoading(true);
+      const response = await fetch(SHEET_URL);
+      const csvText = await response.text();
+
+      Papa.parse(csvText, {
+        header: true,
+        complete: (result: any) => {
+          const rawData = result.data.slice(2) as Scheme[];
+
+          // Strict Filtering Logic
+          const allowedData = rawData.filter(scheme => {
+            const text = (scheme["Govt Scheme Name"] + " " + scheme["Scheme Description"]).toLowerCase();
+
+            // Allow if Pig or Poultry
+            if (text.includes("pig") || text.includes("swine") || text.includes("poultry") || text.includes("chicken") || text.includes("hen") || text.includes("duck")) {
+              return true;
+            }
+
+            // Exclude other specific animals
+            if (text.includes("dairy") || text.includes("cattle") || text.includes("cow") || text.includes("buffalo") ||
+              text.includes("fish") || text.includes("fishery") || text.includes("aquaculture") ||
+              text.includes("sheep") || text.includes("goat") || text.includes("silk") || text.includes("bee")) {
+              return false;
+            }
+
+            // Allow General (neither explicitly allowed animals nor explicitly excluded ones)
+            return true;
+          });
+
+          setSchemes(allowedData);
+          setFilteredSchemes(allowedData);
+
+          // Analyze data to find categories for allowed schemes
+          const foundCategories = new Set<string>();
+          allowedData.forEach(scheme => {
+            const text = (scheme["Govt Scheme Name"] + " " + scheme["Scheme Description"]).toLowerCase();
+            if (text.includes("pig") || text.includes("swine")) foundCategories.add("Pig Farming");
+            if (text.includes("poultry") || text.includes("chicken") || text.includes("hen")) foundCategories.add("Poultry Farming");
+          });
+          // Always add General if not empty
+          foundCategories.add("General Agriculture");
+
+          setCategories(Array.from(foundCategories));
+          setLoading(false);
+        },
+        error: (error: any) => {
+          console.error('CSV Parse Error:', error);
+          Alert.alert('Error', 'Failed to load schemes data');
+          setLoading(false);
+        }
+      });
     } catch (error) {
-      console.error("Error loading data:", error);
-    } finally {
+      console.error('Fetch Error:', error);
+      Alert.alert('Error', 'Failed to fetch data');
       setLoading(false);
     }
   };
 
-  const fetchSchemes = async () => {
-  try {
-    const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWgAD3JxCvVeO0K4n9ncqVeyw/export?format=csv&gid=0";
-    
-    console.log("Fetching from:", SHEET_URL);
-    const response = await fetch(SHEET_URL);
-    const csvText = await response.text();
-    
-    return new Promise<void>((resolve, reject) => {
-      Papa.parse(csvText, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (results) => {
-          console.log("PapaParse results:", {
-            dataCount: results.data.length,
-            errors: results.errors,
-            meta: results.meta
-          });
-          
-          const schemes = results.data
-            .filter((row: any) => row["Govt Scheme Name"] && row["Govt Scheme Name"].trim() !== '')
-            .map((row: any) => ({
-              "Govt Scheme Name": row["Govt Scheme Name"] || '',
-              "Scheme Description": row["Scheme Description"] || '',
-              "Benefits Provided": row["Benefits Provided"] || '',
-              "Eligibility Requirements": row["Eligibility Requirements"] || '',
-              "Required Documents": row["Required Documents"] || '',
-              "How To Apply": row["How To Apply"] || '',
-              "Ministry / Department Name": row["Ministry / Department Name"] || '',
-              "Website Link": row["Website Link"] || '',
-              "PDF Link": row["PDF Link"] || '',
-              "AI Overview": row["AI Overview"] || ''
-            }));
-          
-          // Remove duplicates
-          const uniqueSchemes = Array.from(
-            new Map(schemes.map(scheme => [scheme["Govt Scheme Name"], scheme])).values()
-          );
-          
-          console.log(`Parsed ${uniqueSchemes.length} unique schemes (from ${results.data.length} rows)`);
-          
-          uniqueSchemes.forEach((scheme, index) => {
-            console.log(`${index + 1}. ${scheme["Govt Scheme Name"]}`);
-          });
-          
-          setSchemes(uniqueSchemes);
-          setFilteredSchemes(uniqueSchemes);
-          resolve();
-        },
-        error: (error: any) => {
-          console.error("PapaParse error:", error);
-          reject(error);
-        }
-      });
-    });
-    
-  } catch (error: any) {
-    console.error("Fetch error:", error);
-    Alert.alert("Error", `Failed to fetch schemes: ${error.message}`);
-  }
-};
-
-  const loadLocalData = async () => {
+  const loadSavedData = async () => {
     try {
       const saved = await AsyncStorage.getItem('savedSchemes');
       const applied = await AsyncStorage.getItem('appliedSchemes');
-      
+
       if (saved) setSavedSchemes(JSON.parse(saved));
       if (applied) setAppliedSchemes(JSON.parse(applied));
     } catch (error) {
-      console.error("Error loading local data:", error);
+      console.error('Error loading saved data:', error);
+    }
+  };
+
+  const saveAppliedSchemes = async (data: AppliedScheme[]) => {
+    try {
+      await AsyncStorage.setItem('appliedSchemes', JSON.stringify(data));
+    } catch (error) {
+      console.error('Error saving applied schemes:', error);
     }
   };
 
   useEffect(() => {
-    filterSchemes();
-  }, [selectedAnimalFilter, searchQuery, savedSchemes, appliedSchemes, activeTab, schemes]);
+    let filtered = schemes;
 
-  const filterSchemes = () => {
-    let filtered = [...schemes];
-    
-    if (selectedAnimalFilter !== "All") {
-      filtered = filtered.filter(scheme => {
-        const schemeName = scheme["Govt Scheme Name"]?.toLowerCase() || "";
-        const schemeDescription = scheme["Scheme Description"]?.toLowerCase() || "";
-        
-        if (selectedAnimalFilter === "Pig") {
-          return schemeName.includes("pig") || 
-                 schemeDescription.includes("pig");
-        }
-        
-        if (selectedAnimalFilter === "Poultry") {
-          return schemeName.includes("poultry") || 
-                 schemeDescription.includes("poultry") ||
-                 schemeDescription.includes("chicken");
-        }
-        
-        return true;
-      });
-    }
-    
+    // Search Filter
     if (searchQuery) {
-      const searchLower = searchQuery.toLowerCase();
       filtered = filtered.filter(scheme => {
+        const searchLower = searchQuery.toLowerCase();
         return (
           scheme["Govt Scheme Name"]?.toLowerCase().includes(searchLower) ||
           scheme["Scheme Description"]?.toLowerCase().includes(searchLower) ||
@@ -234,19 +160,26 @@ const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWg
       });
     }
 
-    if (activeTab === "saved") {
-      filtered = filtered.filter(scheme => 
-        savedSchemes.includes(scheme["Govt Scheme Name"])
-      );
-    } else if (activeTab === "applied") {
-      const appliedSchemeNames = appliedSchemes.map(app => app.schemeName);
-      filtered = filtered.filter(scheme => 
-        appliedSchemeNames.includes(scheme["Govt Scheme Name"])
-      );
+    // Category Filters
+    if (selectedCategories.length > 0) {
+      filtered = filtered.filter(scheme => {
+        const text = (scheme["Govt Scheme Name"] + " " + scheme["Scheme Description"] || "").toLowerCase();
+        return selectedCategories.some(cat => {
+          if (cat === "Pig Farming") return text.includes("pig") || text.includes("swine");
+          if (cat === "Poultry Farming") return text.includes("poultry") || text.includes("chicken") || text.includes("hen");
+          if (cat === "General Agriculture") {
+            // General logic: Not Pig and Not Poultry
+            const isPig = text.includes("pig") || text.includes("swine");
+            const isPoultry = text.includes("poultry") || text.includes("chicken") || text.includes("hen");
+            return !isPig && !isPoultry;
+          }
+          return false;
+        });
+      });
     }
-    
+
     setFilteredSchemes(filtered);
-  };
+  }, [schemes, searchQuery, selectedCategories]);
 
   const handleViewDetails = (scheme: Scheme) => {
     setSelectedScheme(scheme);
@@ -259,77 +192,66 @@ const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWg
   };
 
   const handleSaveScheme = async (schemeId: string) => {
+    let updatedSaved: string[];
+    if (savedSchemes.includes(schemeId)) {
+      updatedSaved = savedSchemes.filter(id => id !== schemeId);
+    } else {
+      updatedSaved = [...savedSchemes, schemeId];
+    }
+    setSavedSchemes(updatedSaved);
+
     try {
-      let updatedSaved: string[];
-      if (savedSchemes.includes(schemeId)) {
-        updatedSaved = savedSchemes.filter(id => id !== schemeId);
-      } else {
-        updatedSaved = [...savedSchemes, schemeId];
-      }
-      setSavedSchemes(updatedSaved);
       await AsyncStorage.setItem('savedSchemes', JSON.stringify(updatedSaved));
     } catch (error) {
-      console.error("Error saving scheme:", error);
+      console.error('Error saving scheme:', error);
     }
   };
 
-  const handleApplyStatus = async (schemeName: string, status: 'applied' | 'not-applied' | 'pending') => {
-    try {
-      const existingIndex = appliedSchemes.findIndex(app => app.schemeName === schemeName);
-      
-      let updatedApplied: AppliedScheme[];
-      if (existingIndex >= 0) {
-        updatedApplied = [...appliedSchemes];
-        updatedApplied[existingIndex] = {
-          ...updatedApplied[existingIndex],
+  const handleApplyStatus = async (schemeName: string, status: 'applied' | 'pending' | 'not-applied') => {
+    const existingIndex = appliedSchemes.findIndex(app => app.schemeName === schemeName);
+
+    let updatedApplied: AppliedScheme[];
+    if (existingIndex >= 0) {
+      updatedApplied = [...appliedSchemes];
+      updatedApplied[existingIndex] = {
+        ...updatedApplied[existingIndex],
+        status,
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      updatedApplied = [
+        ...appliedSchemes,
+        {
+          schemeName,
           status,
+          appliedAt: new Date().toISOString(),
           updatedAt: new Date().toISOString()
-        };
-      } else {
-        updatedApplied = [
-          ...appliedSchemes,
-          {
-            schemeName,
-            status,
-            appliedAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          }
-        ];
-      }
-      
-      setAppliedSchemes(updatedApplied);
-      await AsyncStorage.setItem('appliedSchemes', JSON.stringify(updatedApplied));
-    } catch (error) {
-      console.error("Error saving application status:", error);
+        }
+      ];
     }
+
+    setAppliedSchemes(updatedApplied);
+    await saveAppliedSchemes(updatedApplied);
   };
 
-  const getAppliedStatus = (schemeName: string): string | null => {
+  const getAppliedStatus = (schemeName: string): 'applied' | 'pending' | 'not-applied' | null => {
     const applied = appliedSchemes.find(app => app.schemeName === schemeName);
     return applied ? applied.status : null;
   };
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await fetchSchemes();
-    setRefreshing(false);
+  const toggleCategory = (category: string) => {
+    setSelectedCategories(prev =>
+      prev.includes(category)
+        ? prev.filter(c => c !== category)
+        : [...prev, category]
+    );
   };
 
-  const animalFilters = [
-    { id: "All", label: "All", icon: "globe" },
-    { id: "Pig", label: "Pig", icon: "pig" },
-    { id: "Poultry", label: "Poultry", icon: "chicken" }
-  ];
-
-  const renderSchemeCard = ({ item }: { item: Scheme }) => (
-    <SchemeCard
-      scheme={item}
-      onViewDetails={() => handleViewDetails(item)}
-      isSaved={savedSchemes.includes(item["Govt Scheme Name"])}
-      onSaveToggle={() => handleSaveScheme(item["Govt Scheme Name"])}
-      appliedStatus={getAppliedStatus(item["Govt Scheme Name"])}
-    />
-  );
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await fetchCSVData();
+    setRefreshing(false);
+  };
 
   if (currentView === "detail" && selectedScheme) {
     return (
@@ -344,1089 +266,1235 @@ const SHEET_URL = "https://docs.google.com/spreadsheets/d/11oh6nVyIGXoy9oTfA_UWg
     );
   }
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#007AFF" />
+        <Text style={styles.loadingText}>Loading schemes...</Text>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
-      {/* Mobile-Optimized Header */}
-      <View style={styles.mobileHeader}>
-        <View style={styles.headerRow}>
-          <View style={styles.logoContainer}>
-           
-            <View>
-              <Text style={styles.appName}>FarmSeva</Text>
-              <Text style={styles.appTagline}>Govt Schemes Portal</Text>
-            </View>
-          </View>
-          <View style={styles.statsBadge}>
-            <Text style={styles.statNumber}>{schemes.length}</Text>
-            <Text style={styles.statLabel}>Schemes</Text>
-          </View>
-        </View>
-      </View>
+      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
 
-      {/* Search Bar */}
-      <View style={styles.searchContainer}>
-        <SearchIcon size={20} color="#6b7280" style={styles.searchIcon} />
-        <TextInput
-          style={styles.searchInput}
-          placeholder="Search schemes..."
-          placeholderTextColor="#9ca3af"
-          value={searchQuery}
-          onChangeText={setSearchQuery}
-        />
-        {searchQuery ? (
-          <TouchableOpacity onPress={() => setSearchQuery("")} style={styles.clearButton}>
-            <CloseIcon size={18} color="#9ca3af" />
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
-      {/* Tabs */}
-     <View style={{ height: 60, paddingVertical: 8, backgroundColor: "#fff" }}>
-  <ScrollView 
-    horizontal 
-    showsHorizontalScrollIndicator={false} 
-    style={styles.tabsContainer}
-    contentContainerStyle={styles.tabsContent}
-  >
-    <TouchableOpacity
-      style={[styles.tab, activeTab === "all" && styles.activeTab]}
-      onPress={() => setActiveTab("all")}
-    >
-      <Text style={[styles.tabText, activeTab === "all" && styles.activeTabText]}>
-        All
-      </Text>
-    </TouchableOpacity>
-
-    <TouchableOpacity
-      style={[styles.tab, activeTab === "saved" && styles.activeTab]}
-      onPress={() => setActiveTab("saved")}
-    >
-      <BookmarkIcon size={16} color={activeTab === "saved" ? "#ffffff" : "#6b7280"} />
-      <Text style={[styles.tabText, activeTab === "saved" && styles.activeTabText]}>
-        Saved ({savedSchemes.length})
-      </Text>
-    </TouchableOpacity>
-
-    <TouchableOpacity
-      style={[styles.tab, activeTab === "applied" && styles.activeTab]}
-      onPress={() => setActiveTab("applied")}
-    >
-      <HistoryIcon size={16} color={activeTab === "applied" ? "#ffffff" : "#6b7280"} />
-      <Text style={[styles.tabText, activeTab === "applied" && styles.activeTabText]}>
-        Applied ({appliedSchemes.length})
-      </Text>
-    </TouchableOpacity>
-  </ScrollView>
-</View>
-
-
-      {/* Filters */}
-      <View style={styles.filtersContainer} >
-        <Text style={styles.filtersTitle}>Category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          <View style={styles.filtersRow}>
-            {animalFilters.map(filter => (
-              <TouchableOpacity
-                key={filter.id}
-                style={[
-                  styles.filterButton,
-                  selectedAnimalFilter === filter.id && styles.activeFilterButton
-                ]}
-                onPress={() => setSelectedAnimalFilter(filter.id)}
-              >
-                {filter.icon === "globe" && <GlobeIcon size={16} color={selectedAnimalFilter === filter.id ? "#ffffff" : "#374151"} />}
-                {filter.icon === "pig" && <PigIcon size={16} color={selectedAnimalFilter === filter.id ? "#ffffff" : "#374151"} />}
-                {filter.icon === "chicken" && <ChickenIcon size={16} color={selectedAnimalFilter === filter.id ? "#ffffff" : "#374151"} />}
-                <Text style={[
-                  styles.filterButtonText,
-                  selectedAnimalFilter === filter.id && styles.activeFilterButtonText
-                ]}>
-                  {filter.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-
-      {/* Results */}
-      <View style={styles.resultsHeader}>
-        <Text style={styles.resultsTitle}>
-          {activeTab === "saved" ? "Saved Schemes" : 
-           activeTab === "applied" ? "Applied History" : 
-           "Available Schemes"}
-        </Text>
-        <Text style={styles.resultsCount}>
-          {filteredSchemes.length} schemes
-        </Text>
-      </View>
-
-      {/* Content */}
-      <FlatList
-        data={filteredSchemes}
-        renderItem={renderSchemeCard}
-        keyExtractor={(item, index) => index.toString()}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        
+      <ScrollView
+        style={styles.scrollView}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
-        ListEmptyComponent={
-          loading ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color="#111827" />
-              <Text style={styles.loadingText}>Loading schemes...</Text>
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.header}>
+          <TouchableOpacity style={styles.backButton} onPress={() => { }}>
+            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+            <Text style={styles.backButtonText}>Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Government Schemes</Text>
+          <Text style={styles.subtitle}>Farmer Personalized Schemes</Text>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBar}>
+            <Ionicons name="search" size={20} color="#666" style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search for schemes, subsidies, or farming types..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholderTextColor="#999"
+            />
+            <TouchableOpacity style={styles.searchButton}>
+              <Ionicons name="search" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+          <Text style={styles.searchHint}>
+            <Ionicons name="information-circle" size={16} color="#666" /> Try searching for specific terms like "Tractor Subsidy" or "Kisan Credit Card"
+          </Text>
+        </View>
+
+        {/* Filters */}
+        <View style={styles.filterContainer}>
+          <View style={styles.filterHeader}>
+            <Text style={styles.filterTitle}>Filter By</Text>
+            {selectedCategories.length > 0 && (
+              <TouchableOpacity onPress={() => setSelectedCategories([])}>
+                <Text style={styles.resetButton}>Reset Filters</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          <View style={styles.categoryContainer}>
+            <Text style={styles.categoryTitle}>Scheme Category</Text>
+            <View style={styles.categoryChips}>
+              {categories.map((cat, i) => (
+                <TouchableOpacity
+                  key={i}
+                  style={[
+                    styles.categoryChip,
+                    selectedCategories.includes(cat) && styles.categoryChipSelected
+                  ]}
+                  onPress={() => toggleCategory(cat)}
+                >
+                  <Text style={[
+                    styles.categoryChipText,
+                    selectedCategories.includes(cat) && styles.categoryChipTextSelected
+                  ]}>
+                    {cat}
+                  </Text>
+                </TouchableOpacity>
+              ))}
             </View>
-          ) : (
+          </View>
+        </View>
+
+        {/* Results Header */}
+        <View style={styles.resultsHeader}>
+          <View>
+            <Text style={styles.resultsCount}>
+              We found <Text style={styles.resultsCountBold}>{filteredSchemes.length}</Text> farmer personalized schemes
+            </Text>
+            <View style={styles.resultsActions}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Ionicons name="people" size={14} color="#3b82f6" />
+                <Text style={styles.actionText}> Edit</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButton}>
+                <Text style={styles.actionText}>Save Profile</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.sortContainer}>
+            <Text style={styles.sortLabel}>Sort :</Text>
+            <TouchableOpacity style={styles.sortButton}>
+              <Text style={styles.sortText}>Relevance</Text>
+              <Ionicons name="chevron-down" size={16} color="#666" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Scheme List */}
+        <View style={styles.schemeList}>
+          {filteredSchemes.map((scheme, i) => (
+            <SchemeCard
+              key={i}
+              scheme={scheme}
+              onPress={() => handleViewDetails(scheme)}
+            />
+          ))}
+
+          {filteredSchemes.length === 0 && (
             <View style={styles.emptyState}>
-              <SearchIcon size={50} color="#d1d5db" />
-              <Text style={styles.emptyTitle}>No schemes found</Text>
-              <Text style={styles.emptyText}>Try different search or filters</Text>
+              <Ionicons name="search-outline" size={64} color="#ccc" style={styles.emptyStateIcon} />
+              <Text style={styles.emptyStateText}>No schemes found matching your criteria.</Text>
             </View>
-          )
-        }
-      />
+          )}
+        </View>
+
+        <View style={styles.bottomPadding} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-function SchemeCard({ scheme, onViewDetails, isSaved, onSaveToggle, appliedStatus }: SchemeCardProps) {
-  const getAnimalIcon = () => {
+function SchemeCard({ scheme, onPress }: { scheme: Scheme; onPress: () => void }) {
+  const getTags = () => {
+    const tags: string[] = [];
     const name = scheme["Govt Scheme Name"]?.toLowerCase() || "";
     const desc = scheme["Scheme Description"]?.toLowerCase() || "";
-    
-    if (name.includes("pig") || desc.includes("pig")) 
-      return <PigIcon size={22} color="#374151" />;
-    if (name.includes("poultry") || desc.includes("poultry") || desc.includes("chicken")) 
-      return <ChickenIcon size={22} color="#374151" />;
-    return <GlobeIcon size={22} color="#374151" />;
-  };
 
-  const getStatusBadge = () => {
-    switch(appliedStatus) {
-      case 'applied':
-        return (
-          <View style={[styles.cardStatusBadge, { backgroundColor: '#10b981' }]}>
-            <CheckCircleIcon size={12} color="#ffffff" />
-            <Text style={styles.cardStatusText}>Applied</Text>
-          </View>
-        );
-      case 'not-applied':
-        return (
-          <View style={[styles.cardStatusBadge, { backgroundColor: '#ef4444' }]}>
-            <CancelIcon size={12} color="#ffffff" />
-            <Text style={styles.cardStatusText}>Not Applied</Text>
-          </View>
-        );
-      case 'pending':
-        return (
-          <View style={[styles.cardStatusBadge, { backgroundColor: '#f59e0b' }]}>
-            <PendingIcon size={12} color="#ffffff" />
-            <Text style={styles.cardStatusText}>In Progress</Text>
-          </View>
-        );
-      default:
-        return null;
-    }
-  };
+    // Auto-generate some tags based on content
+    if (name.includes("sc") || name.includes("st")) tags.push("Scheduled Caste");
+    if (name.includes("tribe")) tags.push("Scheduled Tribe");
+    if (name.includes("woman") || name.includes("women") || name.includes("female")) tags.push("Women Farmers");
 
-  const amount = scheme["Benefits Provided"]?.match(/₹[\d,]+|Up to [\d,]+|Rs\.[\d,]+/)?.[0] || "Variable";
-  const ministry = scheme["Ministry / Department Name"] || "Government of India";
+    // Farmer centric tags
+    if (name.includes("pig") || desc.includes("pig")) tags.push("Pig Farming");
+    if (name.includes("poultry") || desc.includes("poultry")) tags.push("Poultry Farming");
+    if (name.includes("fish") || desc.includes("fish")) tags.push("Fisheries");
+    if (name.includes("dairy") || desc.includes("dairy")) tags.push("Dairy Farming");
+
+    // Always have some default tags if none matched
+    if (tags.length === 0) tags.push("General Agriculture");
+    if (scheme["Ministry / Department Name"]) tags.push(scheme["Ministry / Department Name"]);
+
+    return tags.slice(0, 4);
+  };
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onViewDetails} activeOpacity={0.9}>
-      <View style={styles.cardContent}>
-        {/* Card Header */}
-        <View style={styles.cardHeader}>
-          <View style={styles.cardIconContainer}>
-            {getAnimalIcon()}
-          </View>
-          <View style={styles.cardTitleContainer}>
-            <Text style={styles.cardTitle} numberOfLines={2}>
-              {scheme["Govt Scheme Name"]}
-            </Text>
-            <View style={styles.cardSubtitle}>
-              <BuildingIcon size={12} color="#6b7280" />
-              <Text style={styles.cardSubtitleText} numberOfLines={1}>
-                {ministry}
-              </Text>
-            </View>
-          </View>
-          <TouchableOpacity 
-            onPress={(e) => {
-              e.stopPropagation();
-              onSaveToggle();
-            }} 
-            style={styles.cardBookmark}
-          >
-            {isSaved ? (
-              <BookmarkCheckIcon size={22} color="#111827" />
-            ) : (
-              <BookmarkBorderIcon size={22} color="#9ca3af" />
-            )}
-          </TouchableOpacity>
-        </View>
+    <TouchableOpacity style={styles.schemeCard} onPress={onPress}>
+      <Text style={styles.schemeCardTitle}>{scheme["Govt Scheme Name"]}</Text>
+      <Text style={styles.schemeCardDepartment}>
+        {scheme["Ministry / Department Name"] || "Government of India"}
+      </Text>
 
-        {/* Description */}
-        <Text style={styles.cardDescription} numberOfLines={2}>
-          {scheme["Scheme Description"]}
-        </Text>
+      <Text style={styles.schemeCardDescription} numberOfLines={2}>
+        {scheme["Scheme Description"]}
+      </Text>
 
-        {/* Benefits */}
-        <View style={styles.cardBenefits}>
-          <RupeeIcon size={16} color="#374151" />
-          <Text style={styles.cardBenefitsText} numberOfLines={1}>
-            {amount}
-          </Text>
-        </View>
-
-        {/* Status and Action */}
-        <View style={styles.cardFooter}>
-          <View style={styles.cardBadges}>
-            {getStatusBadge()}
-            <View style={[styles.cardStatusBadge, { backgroundColor: '#f3f4f6' }]}>
-              <ShieldIcon size={12} color="#374151" />
-              <Text style={[styles.cardStatusText, { color: '#374151' }]}>Verified</Text>
-            </View>
+      <View style={styles.schemeCardTags}>
+        {getTags().map((tag, i) => (
+          <View key={i} style={styles.tag}>
+            <Text style={styles.tagText}>{tag}</Text>
           </View>
-          <TouchableOpacity style={styles.cardActionButton} onPress={onViewDetails}>
-            <Text style={styles.cardActionText}>View</Text>
-            <ChevronRightIcon size={16} color="#ffffff" />
-          </TouchableOpacity>
-        </View>
+        ))}
       </View>
     </TouchableOpacity>
   );
 }
 
-function SchemeDetailPage({ scheme, onBack, isSaved, onSaveToggle, appliedStatus, onApplyStatusChange }: SchemeDetailPageProps) {
-  const [webViewVisible, setWebViewVisible] = useState(false);
+const DUMMY_NEWS = [
+  {
+    id: 1,
+    title: "PM-KISAN 16th Installment Released",
+    date: "Feb 28, 2024",
+    link: "#"
+  },
+  {
+    id: 2,
+    title: "New Subsidy Rates for Fertilizers Announced",
+    date: "Mar 05, 2024",
+    link: "#"
+  },
+  {
+    id: 3,
+    title: "Agri-Infrastructure Fund reaches new milestone",
+    date: "Mar 10, 2024",
+    link: "#"
+  }
+];
 
-  const handleOpenLink = async (url: string | undefined) => {
+function SchemeDetailPage({
+  scheme,
+  onBack,
+  isSaved,
+  onSaveToggle,
+  appliedStatus,
+  onApplyStatusChange
+}: {
+  scheme: Scheme;
+  onBack: () => void;
+  isSaved: boolean;
+  onSaveToggle: () => void;
+  appliedStatus: 'applied' | 'pending' | 'not-applied' | null;
+  onApplyStatusChange: (status: 'applied' | 'pending' | 'not-applied') => void;
+}) {
+  const [activeSection, setActiveSection] = useState("details");
+
+  const sections = [
+    { id: "details", label: "Details", icon: "document-text" },
+    { id: "benefits", label: "Benefits", icon: "gift" },
+    { id: "eligibility", label: "Eligibility", icon: "checkmark-circle" },
+    { id: "application", label: "Application Process", icon: "clipboard" },
+    { id: "documents", label: "Documents Required", icon: "folder" },
+    { id: "faq", label: "Frequently Asked Questions", icon: "help-circle" },
+    { id: "sources", label: "Sources And References", icon: "link" },
+    { id: "feedback", label: "Feedback", icon: "chatbubble" }
+  ];
+
+  const handleOpenLink = async (url: string) => {
     try {
-      if (!url) {
-        Alert.alert("No Link", "Application link is not available");
-        return;
-      }
-      
-      const supported = await Linking.canOpenURL(url);
-      if (supported) {
-        await Linking.openURL(url);
-      } else {
-        Alert.alert("Error", "Cannot open this link");
-      }
+      await WebBrowser.openBrowserAsync(url);
     } catch (error) {
-      console.error("Error opening link:", error);
-      Alert.alert("Error", "Failed to open link");
+      Alert.alert('Error', 'Could not open the link');
+    }
+  };
+
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `Check out this government scheme: ${scheme["Govt Scheme Name"]} - ${scheme["Scheme Description"]}`,
+        url: scheme["Website Link"],
+        title: scheme["Govt Scheme Name"]
+      });
+    } catch (error) {
+      Alert.alert('Error', 'Could not share scheme');
     }
   };
 
   const parseBenefits = (benefitsText: string) => {
     if (!benefitsText) return [];
-    return benefitsText.split(/\.\s+/).filter(item => item.trim()).map(item => item.trim() + '.');
+    const items = benefitsText.split(/(?:\d+\.\s)/).filter(item => item.trim());
+    if (items.length <= 1) {
+      return benefitsText.split(/\.\s+/).filter(item => item.trim()).map(item => item + '.');
+    }
+    return items;
   };
 
-  const benefitsList = parseBenefits(scheme["Benefits Provided"] || '');
+  const ministry = scheme["Ministry / Department Name"] || "Government of India";
+  const benefitsList = parseBenefits(scheme["Benefits Provided"]);
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#ffffff" />
-      
-      {/* Detail Header */}
-      <View style={styles.detailHeader}>
-        <TouchableOpacity style={styles.detailBackButton} onPress={onBack}>
-          <ArrowBackIcon size={24} color="#374151" />
-        </TouchableOpacity>
-        <Text style={styles.detailHeaderTitle} numberOfLines={1}>
-          Scheme Details
-        </Text>
-        <TouchableOpacity
-          style={styles.detailSaveButton}
-          onPress={onSaveToggle}
-        >
-          {isSaved ? (
-            <BookmarkCheckIcon size={22} color="#111827" />
-          ) : (
-            <BookmarkBorderIcon size={22} color="#374151" />
-          )}
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.detailContainer} showsVerticalScrollIndicator={false}>
-        {/* Scheme Title */}
-        <View style={styles.detailHero}>
-          <Text style={styles.detailTitle}>
-            {scheme["Govt Scheme Name"]}
-          </Text>
-          <View style={styles.detailCategory}>
-            <GlobeIcon size={16} color="#6b7280" />
-            <Text style={styles.detailCategoryText}>
-              {scheme["Ministry / Department Name"] || "Government Scheme"}
-            </Text>
-          </View>
-        </View>
-
-        {/* Description */}
-        <View style={styles.detailSection}>
-          <Text style={styles.detailSectionTitle}>Description</Text>
-          <Text style={styles.detailDescription}>
-            {scheme["Scheme Description"]}
-          </Text>
-        </View>
-
-        {/* Benefits */}
-        {scheme["Benefits Provided"] && (
-          <View style={styles.detailSection}>
-            <View style={styles.detailSectionHeader}>
-              <RupeeIcon size={20} color="#111827" />
-              <Text style={styles.detailSectionTitle}>Benefits</Text>
-            </View>
-            {benefitsList.length > 0 ? (
-              benefitsList.map((benefit, index) => (
-                <View key={index} style={styles.benefitItem}>
-                  <View style={styles.benefitBullet}>
-                    <Text style={styles.benefitBulletText}>•</Text>
-                  </View>
-                  <Text style={styles.benefitText}>{benefit}</Text>
+  const renderSectionContent = () => {
+    switch (activeSection) {
+      case "details":
+        return (
+          <View>
+            <Text style={styles.detailContentText}>{scheme["Scheme Description"]}</Text>
+            {scheme["AI Overview"] && (
+              <View style={styles.overviewBox}>
+                <View style={styles.overviewHeader}>
+                  <Ionicons name="information-circle" size={24} color="#1e40af" />
+                  <Text style={styles.overviewTitle}>Overview</Text>
                 </View>
-              ))
-            ) : (
-              <Text style={styles.detailText}>
-                {scheme["Benefits Provided"]}
-              </Text>
+                <Text style={styles.overviewText}>{scheme["AI Overview"]}</Text>
+              </View>
             )}
           </View>
-        )}
+        );
 
-        {/* Eligibility */}
-        {scheme["Eligibility Requirements"] && (
-          <View style={styles.detailSection}>
-            <View style={styles.detailSectionHeader}>
-              <PeopleIcon size={20} color="#111827" />
-              <Text style={styles.detailSectionTitle}>Eligibility</Text>
-            </View>
-            <Text style={styles.detailText}>
-              {scheme["Eligibility Requirements"]}
-            </Text>
+      case "benefits":
+        return (
+          <View>
+            {benefitsList.length > 0 ? (
+              <View style={styles.benefitsList}>
+                {benefitsList.map((benefit, i) => (
+                  <View key={i} style={styles.benefitItem}>
+                    <Ionicons name="checkmark-circle" size={20} color="#10b981" />
+                    <Text style={styles.benefitText}>{benefit}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : (
+              <Text style={styles.detailContentText}>{scheme["Benefits Provided"] || "Contact authorities for details."}</Text>
+            )}
           </View>
-        )}
+        );
 
-        {/* Documents */}
-        {scheme["Required Documents"] && (
-          <View style={styles.detailSection}>
-            <View style={styles.detailSectionHeader}>
-              <ListIcon size={20} color="#111827" />
-              <Text style={styles.detailSectionTitle}>Documents Required</Text>
-            </View>
-            <Text style={styles.detailText}>
-              {scheme["Required Documents"]}
+      case "eligibility":
+        return (
+          <Text style={styles.detailContentText}>
+            {scheme["Eligibility Requirements"] || "See official guidelines."}
+          </Text>
+        );
+
+      case "application":
+        return (
+          <View>
+            <Text style={styles.detailContentText}>
+              {scheme["How To Apply"] || "Visit the official website."}
             </Text>
+            <TouchableOpacity
+              style={styles.officialButton}
+              onPress={() => handleOpenLink(scheme["Website Link"])}
+            >
+              <Text style={styles.officialButtonText}>Visit Official Website</Text>
+              <Ionicons name="open-outline" size={20} color="white" />
+            </TouchableOpacity>
           </View>
-        )}
+        );
 
-        {/* How to Apply */}
-        {scheme["How To Apply"] && (
-          <View style={styles.detailSection}>
-            <View style={styles.detailSectionHeader}>
-              <DescriptionIcon size={20} color="#111827" />
-              <Text style={styles.detailSectionTitle}>How to Apply</Text>
-            </View>
-            <Text style={styles.detailText}>
-              {scheme["How To Apply"]}
+      case "documents":
+        return (
+          <View>
+            <Text style={styles.detailContentText}>
+              {scheme["Required Documents"] || "Check the official brochure."}
             </Text>
+            {(scheme["PDF Link"] || scheme["Document Link"]) && (
+              <TouchableOpacity
+                style={styles.pdfLink}
+                onPress={() => handleOpenLink(scheme["PDF Link"] || scheme["Document Link"] || "")}
+              >
+                <Ionicons name="document-text" size={22} color="#007AFF" />
+                <Text style={styles.pdfLinkText}>Download Application Form / Guidelines (PDF)</Text>
+              </TouchableOpacity>
+            )}
           </View>
-        )}
+        );
 
-        {/* Action Buttons */}
-        <View style={styles.actionButtons}>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            onPress={() => handleOpenLink(scheme["Website Link"])}
-          >
-            <Text style={styles.primaryButtonText}>Apply Online</Text>
-            <OpenInNewIcon size={18} color="#ffffff" />
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={styles.secondaryButton}
-            onPress={() => handleOpenLink(scheme["PDF Link"])}
-          >
-            <DownloadIcon size={18} color="#111827" />
-            <Text style={styles.secondaryButtonText}>Download Form</Text>
+      case "faq":
+        return (
+          <Text style={styles.detailContentText}>No FAQs available regarding this scheme.</Text>
+        );
+
+      case "sources":
+        return (
+          <Text style={styles.detailContentText}>Data provided by Ministry of Agriculture.</Text>
+        );
+
+      case "feedback":
+        return (
+          <View>
+            <TextInput
+              style={styles.feedbackInput}
+              placeholder="Was this information helpful?"
+              multiline
+              numberOfLines={4}
+            />
+            <TouchableOpacity style={styles.submitButton}>
+              <Text style={styles.submitButtonText}>Submit Feedback</Text>
+            </TouchableOpacity>
+          </View>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <SafeAreaView style={styles.detailContainer}>
+      <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
+
+      <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollContent}>
+        {/* Header */}
+        <View style={styles.detailHeader}>
+          <TouchableOpacity onPress={onBack} style={styles.detailBackButton}>
+            <Ionicons name="arrow-back" size={24} color="#007AFF" />
+            <Text style={styles.detailBackText}>Back</Text>
           </TouchableOpacity>
         </View>
 
-        {/* Applied Status */}
-        <View style={styles.statusSection}>
+        {/* Scheme Header */}
+        <View style={styles.schemeHeader}>
+          <Text style={styles.schemeMinistry}>{ministry}</Text>
+          <View style={styles.schemeTitleRow}>
+            <Text style={styles.schemeTitle}>{scheme["Govt Scheme Name"]}</Text>
+            <TouchableOpacity onPress={onSaveToggle} style={styles.saveButton}>
+              <Ionicons
+                name={isSaved ? "bookmark" : "bookmark-outline"}
+                size={32}
+                color={isSaved ? "#007AFF" : "#666"}
+              />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.schemeTags}>
+            {scheme["Govt Scheme Name"].includes("Coaching") && (
+              <View style={styles.schemeTag}>
+                <Text style={styles.schemeTagText}>Coaching</Text>
+              </View>
+            )}
+            <View style={styles.schemeTag}>
+              <Text style={styles.schemeTagText}>Farmers</Text>
+            </View>
+            {scheme["Govt Scheme Name"].toLowerCase().includes("sc") && (
+              <View style={styles.schemeTag}>
+                <Text style={styles.schemeTagText}>Scheduled Caste</Text>
+              </View>
+            )}
+          </View>
+
+          <TouchableOpacity
+            style={styles.applyButton}
+            onPress={() => handleOpenLink(scheme["Website Link"])}
+          >
+            <Text style={styles.applyButtonText}>Apply on Official Portal</Text>
+            <Ionicons name="open-outline" size={20} color="white" />
+          </TouchableOpacity>
+
+          {(scheme["PDF Link"] || scheme["Document Link"]) && (
+            <TouchableOpacity
+              style={styles.pdfLink}
+              onPress={() => handleOpenLink(scheme["PDF Link"] || scheme["Document Link"] || "")}
+            >
+              <Ionicons name="document-text" size={22} color="#007AFF" />
+              <Text style={styles.pdfLinkText}>Download Application Form / Guidelines (PDF)</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Status Section */}
+        <View style={styles.statusContainer}>
           <Text style={styles.statusTitle}>Application Status</Text>
-          <View style={styles.statusOptions}>
+          <View style={styles.statusButtons}>
             <TouchableOpacity
               style={[
-                styles.statusOption,
-                appliedStatus === 'applied' && styles.statusOptionActive
+                styles.statusButton,
+                appliedStatus === 'applied' && styles.statusApplied
               ]}
               onPress={() => onApplyStatusChange('applied')}
             >
-              <View style={[
-                styles.statusRadio,
-                appliedStatus === 'applied' && styles.statusRadioActive
-              ]}>
-                {appliedStatus === 'applied' && <CheckIcon size={14} color="#ffffff" />}
-              </View>
+              <Ionicons
+                name="checkmark-circle"
+                size={20}
+                color={appliedStatus === 'applied' ? "white" : "#666"}
+              />
               <Text style={[
-                styles.statusOptionText,
-                appliedStatus === 'applied' && styles.statusOptionTextActive
-              ]}>Applied</Text>
+                styles.statusButtonText,
+                appliedStatus === 'applied' && styles.statusButtonTextActive
+              ]}>
+                Applied
+              </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
-                styles.statusOption,
-                appliedStatus === 'not-applied' && styles.statusOptionNotApplied
-              ]}
-              onPress={() => onApplyStatusChange('not-applied')}
-            >
-              <View style={[
-                styles.statusRadio,
-                appliedStatus === 'not-applied' && styles.statusRadioNotApplied
-              ]}>
-                {appliedStatus === 'not-applied' && <CloseIcon size={14} color="#ffffff" />}
-              </View>
-              <Text style={[
-                styles.statusOptionText,
-                appliedStatus === 'not-applied' && styles.statusOptionTextActive
-              ]}>Not Applied</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={[
-                styles.statusOption,
-                appliedStatus === 'pending' && styles.statusOptionPending
+                styles.statusButton,
+                appliedStatus === 'pending' && styles.statusPending
               ]}
               onPress={() => onApplyStatusChange('pending')}
             >
-              <View style={[
-                styles.statusRadio,
-                appliedStatus === 'pending' && styles.statusRadioPending
-              ]}>
-                {appliedStatus === 'pending' && <PendingIcon size={14} color="#ffffff" />}
-              </View>
+              <Ionicons
+                name="time"
+                size={20}
+                color={appliedStatus === 'pending' ? "white" : "#666"}
+              />
               <Text style={[
-                styles.statusOptionText,
-                appliedStatus === 'pending' && styles.statusOptionTextActive
-              ]}>In Progress</Text>
+                styles.statusButtonText,
+                appliedStatus === 'pending' && styles.statusButtonTextActive
+              ]}>
+                In Progress
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                appliedStatus === 'not-applied' && styles.statusNotApplied
+              ]}
+              onPress={() => onApplyStatusChange('not-applied')}
+            >
+              <Ionicons
+                name="close-circle"
+                size={20}
+                color={appliedStatus === 'not-applied' ? "white" : "#666"}
+              />
+              <Text style={[
+                styles.statusButtonText,
+                appliedStatus === 'not-applied' && styles.statusButtonTextActive
+              ]}>
+                Not Applied
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
 
-        {/* Additional Info */}
-        {scheme["AI Overview"] && (
-          <View style={styles.infoSection}>
-            <View style={styles.infoHeader}>
-              <InfoIcon size={20} color="#111827" />
-              <Text style={styles.infoTitle}>Additional Information</Text>
-            </View>
-            <Text style={styles.infoText}>
-              {scheme["AI Overview"]}
-            </Text>
-          </View>
-        )}
-
-        {/* Quick Info */}
-        <View style={styles.quickInfoSection}>
-          <View style={styles.quickInfoItem}>
-            <ShieldIcon size={18} color="#6b7280" />
-            <Text style={styles.quickInfoLabel}>Status</Text>
-            <Text style={styles.quickInfoValue}>Active & Verified</Text>
-          </View>
-          <View style={styles.quickInfoItem}>
-            <ClockIcon size={18} color="#6b7280" />
-            <Text style={styles.quickInfoLabel}>Processing</Text>
-            <Text style={styles.quickInfoValue}>15-30 days</Text>
-          </View>
-          <View style={styles.quickInfoItem}>
-            <CheckIcon size={18} color="#6b7280" />
-            <Text style={styles.quickInfoLabel}>Success Rate</Text>
-            <Text style={styles.quickInfoValue}>92%</Text>
-          </View>
+        {/* Section Navigation */}
+        <View style={styles.sectionNavContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.sectionNavScroll}
+            contentContainerStyle={styles.sectionNavContent}
+          >
+            {sections.map((section) => (
+              <TouchableOpacity
+                key={section.id}
+                style={[
+                  styles.sectionNavButton,
+                  activeSection === section.id && styles.sectionNavButtonActive
+                ]}
+                onPress={() => setActiveSection(section.id)}
+              >
+                <Ionicons
+                  name={section.icon as any}
+                  size={20}
+                  color={activeSection === section.id ? "#3b82f6" : "#666"}
+                  style={styles.sectionNavIcon}
+                />
+                <Text style={[
+                  styles.sectionNavText,
+                  activeSection === section.id && styles.sectionNavTextActive
+                ]}>
+                  {section.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
-      </ScrollView>
 
-      {/* WebView Modal */}
-      <Modal
-        visible={webViewVisible}
-        animationType="slide"
-        onRequestClose={() => setWebViewVisible(false)}
-      >
-        <SafeAreaView style={{ flex: 1 }}>
-          <View style={styles.modalHeader}>
-            <TouchableOpacity onPress={() => setWebViewVisible(false)}>
-              <CloseIcon size={24} color="#374151" />
-            </TouchableOpacity>
-            <Text style={styles.modalTitle}>Application Form</Text>
+        {/* Section Content */}
+        <View style={styles.sectionContainer}>
+          <Text style={styles.sectionTitle}>
+            {sections.find(s => s.id === activeSection)?.label}
+          </Text>
+          {renderSectionContent()}
+        </View>
+
+        {/* News Section */}
+        <View style={styles.newsContainer}>
+          <Text style={styles.newsTitle}>News and Updates</Text>
+          <View style={styles.newsList}>
+            {DUMMY_NEWS.map(news => (
+              <TouchableOpacity key={news.id} style={styles.newsItem}>
+                <Text style={styles.newsItemTitle}>{news.title}</Text>
+                <Text style={styles.newsItemDate}>{news.date}</Text>
+              </TouchableOpacity>
+            ))}
           </View>
-          {scheme["PDF Link"] && (
-            <WebView
-              source={{ uri: scheme["PDF Link"] }}
-              style={{ flex: 1 }}
-            />
+          {DUMMY_NEWS.length === 0 && (
+            <Text style={styles.noNewsText}>No new news and updates available</Text>
           )}
-        </SafeAreaView>
-      </Modal>
+        </View>
+
+        {/* Share Section */}
+        <View style={styles.shareContainer}>
+          <Text style={styles.shareTitle}>Share</Text>
+          <View style={styles.shareButtons}>
+            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <Ionicons name="logo-linkedin" size={24} color="white" />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.shareButton} onPress={handleShare}>
+              <Ionicons name="share-social" size={24} color="white" />
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.bottomPadding} />
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  // Container & Layout
   container: {
     flex: 1,
-    backgroundColor: "#ffffff",
+    backgroundColor: '#f8fafc',
   },
-  // Mobile Header
-  mobileHeader: {
-    backgroundColor: "#ffffff",
-    paddingHorizontal: 16,
-    paddingTop: 40,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+  detailContainer: {
+    flex: 1,
+    backgroundColor: '#f8fafc',
   },
-  headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+  scrollView: {
+    flex: 1,
   },
-  logoContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  scrollContent: {
+    flexGrow: 1,
   },
-  logo: {
-    width: 40,
-    height: 40,
-    backgroundColor: "#111827",
-    borderRadius: 10,
+
+  // Loading States
+  loadingContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    backgroundColor: '#f8fafc',
   },
-  appName: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: "#111827",
+  loadingText: {
+    marginTop: 16,
+    fontSize: isSmallDevice ? 14 : 16,
+    color: '#64748b',
   },
-  appTagline: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginTop: 2,
+
+  // Header
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: 'white',
   },
-  statsBadge: {
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 20,
-  },
-  statNumber: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: "#111827",
-  },
-  statLabel: {
-    fontSize: 10,
-    color: "#6b7280",
-    marginTop: 2,
-  },
-  // Search
-  searchContainer: {
+  backButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 12,
-    backgroundColor: "#f9fafb",
+    paddingVertical: 8,
+  },
+  backButtonText: {
+    fontSize: isSmallDevice ? 16 : 17,
+    color: '#3b82f6',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+  title: {
+    fontSize: isSmallDevice ? 24 : 28,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#64748b',
+  },
+
+  // Search
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'white',
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
     borderRadius: 12,
     paddingHorizontal: 12,
+    marginBottom: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: isSmallDevice ? 10 : 12,
+    paddingHorizontal: 8,
+    fontSize: isSmallDevice ? 14 : 16,
+    color: '#0f172a',
   },
   searchIcon: {
     marginRight: 8,
   },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 12,
-    fontSize: 16,
-    color: "#111827",
+  searchButton: {
+    backgroundColor: '#15803d',
+    padding: 12,
+    borderRadius: 8,
+    marginLeft: 8,
   },
-  clearButton: {
-    padding: 4,
+  searchHint: {
+    fontSize: isSmallDevice ? 12 : 13,
+    color: '#64748b',
   },
-  // Tabs
-  tabsContainer: {
-    marginBottom: 8,
-  },
-  tabsContent: {
-    paddingHorizontal: 16,
-  },
-  tab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-    backgroundColor: "#f3f4f6",
-  },
-  activeTab: {
-    backgroundColor: "#111827",
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: "#6b7280",
-    marginLeft: 4,
-  },
-  activeTabText: {
-    color: "#ffffff",
-  },
+
   // Filters
-  filtersContainer: {
-    paddingHorizontal: 16,
+  filterContainer: {
+    padding: 16,
+    backgroundColor: 'white',
+  },
+  filterHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  filtersTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: "#374151",
-    marginBottom: 8,
+  filterTitle: {
+    fontSize: isSmallDevice ? 18 : 20,
+    fontWeight: '700',
+    color: '#0f172a',
   },
-  filtersRow: {
-    flexDirection: 'row',
-    
-  },
-  filterButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#ffffff",
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  activeFilterButton: {
-    backgroundColor: "#111827",
-    borderColor: "#111827",
-  },
-  filterButtonText: {
-    fontSize: 14,
+  resetButton: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#10b981',
     fontWeight: '500',
-    color: "#374151",
-    marginLeft: 6,
   },
-  activeFilterButtonText: {
-    color: "#ffffff",
-  },
-  // Results
-  resultsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    marginBottom: 12,
-  },
-  resultsTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: "#111827",
-  },
-  resultsCount: {
-    fontSize: 14,
-    color: "#6b7280",
-  },
-  // List Content
-  listContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 20,
-    
-  },
-  // Loading
-  loadingContainer: {
-    paddingVertical: 60,
-    alignItems: 'center',
-  },
-  loadingText: {
-    fontSize: 16,
-    color: "#6b7280",
-    marginTop: 12,
-  },
-  // Empty State
-  emptyState: {
-    paddingVertical: 80,
-    alignItems: 'center',
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: "#111827",
-    marginTop: 16,
+  categoryContainer: {
     marginBottom: 8,
   },
-  emptyText: {
-    fontSize: 14,
-    color: "#6b7280",
-    textAlign: 'center',
-  },
-  // Card Styles
-  card: {
-    backgroundColor: "#ffffff",
-    borderRadius: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: "#f3f4f6",
-  },
-  cardContent: {
-    padding: 16,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardIconContainer: {
-    width: 40,
-    height: 40,
-    backgroundColor: "#f3f4f6",
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  cardTitleContainer: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: "#111827",
-    marginBottom: 4,
-  },
-  cardSubtitle: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  cardSubtitleText: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginLeft: 4,
-  },
-  cardBookmark: {
-    padding: 4,
-  },
-  cardDescription: {
-    fontSize: 14,
-    color: "#374151",
-    marginBottom: 12,
-    lineHeight: 20,
-  },
-  cardBenefits: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardBenefitsText: {
-    fontSize: 16,
+  categoryTitle: {
+    fontSize: isSmallDevice ? 16 : 17,
     fontWeight: '600',
-    color: "#111827",
-    marginLeft: 8,
+    color: '#334155',
+    marginBottom: 12,
   },
-  cardFooter: {
+  categoryChips: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  cardBadges: {
-    flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
   },
-  cardStatusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+  categoryChip: {
+    paddingHorizontal: isSmallDevice ? 12 : 16,
+    paddingVertical: isSmallDevice ? 6 : 8,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
   },
-  cardStatusText: {
-    fontSize: 10,
+  categoryChipSelected: {
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  categoryChipText: {
+    fontSize: isSmallDevice ? 13 : 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  categoryChipTextSelected: {
+    color: 'white',
     fontWeight: '600',
-    color: "#ffffff",
-    marginLeft: 4,
   },
-  cardActionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: "#111827",
-    borderRadius: 8,
-  },
-  cardActionText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: "#ffffff",
-    marginRight: 4,
-  },
-  // Detail Page Styles
-  detailHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  detailBackButton: {
-    padding: 4,
-  },
-  detailHeaderTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: "#111827",
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
-  detailSaveButton: {
-    padding: 4,
-  },
-  detailContainer: {
-    flex: 1,
-    backgroundColor: "#ffffff",
-  },
-  detailHero: {
+
+  // Results Header
+  resultsHeader: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    backgroundColor: 'white',
   },
-  detailTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: "#111827",
+  resultsCount: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#64748b',
     marginBottom: 8,
   },
-  detailCategory: {
+  resultsCountBold: {
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  resultsActions: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  detailCategoryText: {
-    fontSize: 14,
-    color: "#6b7280",
-    marginLeft: 6,
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginRight: 16,
   },
-  detailSection: {
+  actionText: {
+    fontSize: isSmallDevice ? 13 : 14,
+    color: '#3b82f6',
+    fontWeight: '500',
+    marginLeft: 4,
+  },
+  sortContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  sortLabel: {
+    fontSize: isSmallDevice ? 13 : 14,
+    color: '#64748b',
+    marginRight: 8,
+  },
+  sortButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sortText: {
+    fontSize: isSmallDevice ? 13 : 14,
+    color: '#0f172a',
+    fontWeight: '500',
+    marginRight: 4,
+  },
+
+  // Scheme Cards
+  schemeList: {
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
   },
-  detailSectionHeader: {
+  schemeCard: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: isSmallDevice ? 16 : 20,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+  },
+  schemeCardTitle: {
+    fontSize: isSmallDevice ? 18 : 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 6,
+    lineHeight: isSmallDevice ? 24 : 28,
+  },
+  schemeCardDepartment: {
+    fontSize: isSmallDevice ? 13 : 14,
+    color: '#3b82f6',
+    fontWeight: '500',
+    marginBottom: 12,
+  },
+  schemeCardDescription: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#64748b',
+    lineHeight: isSmallDevice ? 20 : 22,
+    marginBottom: 16,
+  },
+  schemeCardTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  tag: {
+    backgroundColor: '#f0f9ff',
+    paddingHorizontal: isSmallDevice ? 10 : 12,
+    paddingVertical: isSmallDevice ? 4 : 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  tagText: {
+    fontSize: isSmallDevice ? 11 : 12,
+    color: '#0369a1',
+    fontWeight: '500',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    paddingHorizontal: 32,
+  },
+  emptyStateIcon: {
+    marginBottom: 16,
+  },
+  emptyStateText: {
+    fontSize: isSmallDevice ? 16 : 18,
+    color: '#64748b',
+    textAlign: 'center',
+    lineHeight: isSmallDevice ? 22 : 24,
+  },
+
+  // Detail Page
+  detailHeader: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+    backgroundColor: 'white',
+  },
+  detailBackButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  detailBackText: {
+    fontSize: isSmallDevice ? 16 : 17,
+    color: '#3b82f6',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+
+  // Scheme Header in Detail
+  schemeHeader: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: isSmallDevice ? 16 : 20,
+    margin: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  schemeMinistry: {
+    fontSize: isSmallDevice ? 13 : 14,
+    color: '#64748b',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  schemeTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  schemeTitle: {
+    fontSize: isSmallDevice ? 22 : 24,
+    fontWeight: '700',
+    color: '#0f172a',
+    flex: 1,
+    marginRight: 16,
+    lineHeight: isSmallDevice ? 28 : 32,
+  },
+  saveButton: {
+    padding: 4,
+  },
+
+  // Tags in Detail
+  schemeTags: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 20,
+  },
+  schemeTag: {
+    backgroundColor: 'white',
+    borderWidth: 1,
+    borderColor: '#10b981',
+    borderRadius: 16,
+    paddingHorizontal: isSmallDevice ? 12 : 16,
+    paddingVertical: isSmallDevice ? 6 : 8,
+  },
+  schemeTagText: {
+    fontSize: isSmallDevice ? 12 : 13,
+    color: '#10b981',
+    fontWeight: '500',
+  },
+
+  // Apply Button
+  applyButton: {
+    backgroundColor: '#10b981',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: isSmallDevice ? 14 : 16,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  applyButtonText: {
+    color: 'white',
+    fontSize: isSmallDevice ? 15 : 16,
+    fontWeight: '600',
+    marginRight: 8,
+  },
+
+  // PDF Link
+  pdfLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  pdfLinkText: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#3b82f6',
+    fontWeight: '500',
+    marginLeft: 8,
+  },
+
+  // Status Section
+  statusContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: isSmallDevice ? 16 : 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  statusTitle: {
+    fontSize: isSmallDevice ? 18 : 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 16,
+  },
+  statusButtons: {
+    gap: 12,
+  },
+  statusButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: isSmallDevice ? 14 : 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: 'white',
+  },
+  statusApplied: {
+    backgroundColor: '#d1fae5',
+    borderColor: '#10b981',
+  },
+  statusPending: {
+    backgroundColor: '#fef3c7',
+    borderColor: '#f59e0b',
+  },
+  statusNotApplied: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#ef4444',
+  },
+  statusButtonText: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#64748b',
+    marginLeft: 12,
+    fontWeight: '500',
+  },
+  statusButtonTextActive: {
+    color: '#0f172a',
+    fontWeight: '600',
+  },
+
+  // Section Navigation
+  sectionNavContainer: {
+    marginBottom: 16,
+    marginHorizontal: 16,
+  },
+  sectionNavScroll: {
+    flexGrow: 0,
+  },
+  sectionNavContent: {
+    paddingRight: 16,
+  },
+  sectionNavButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: isSmallDevice ? 14 : 16,
+    paddingVertical: isSmallDevice ? 10 : 12,
+    backgroundColor: 'white',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    marginRight: 8,
+  },
+  sectionNavButtonActive: {
+    backgroundColor: '#f0f9ff',
+    borderColor: '#3b82f6',
+  },
+  sectionNavIcon: {
+    marginRight: 8,
+  },
+  sectionNavText: {
+    fontSize: isSmallDevice ? 13 : 14,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+  sectionNavTextActive: {
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+
+  // Section Content
+  sectionContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: isSmallDevice ? 16 : 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  sectionTitle: {
+    fontSize: isSmallDevice ? 20 : 22,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 16,
+  },
+  detailContentText: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#475569',
+    lineHeight: isSmallDevice ? 22 : 24,
+  },
+
+  // Overview Box
+  overviewBox: {
+    backgroundColor: '#dbeafe',
+    borderRadius: 12,
+    padding: isSmallDevice ? 16 : 20,
+    marginTop: 16,
+  },
+  overviewHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
   },
-  detailSectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: "#111827",
+  overviewTitle: {
+    fontSize: isSmallDevice ? 16 : 18,
+    fontWeight: '700',
+    color: '#1e40af',
     marginLeft: 8,
   },
-  detailDescription: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
+  overviewText: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#1e40af',
+    lineHeight: isSmallDevice ? 20 : 22,
   },
-  detailText: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
+
+  // Benefits List
+  benefitsList: {
+    gap: 12,
   },
   benefitItem: {
     flexDirection: 'row',
-    marginBottom: 8,
-  },
-  benefitBullet: {
-    width: 24,
-    alignItems: 'center',
-  },
-  benefitBulletText: {
-    fontSize: 16,
-    color: "#374151",
+    alignItems: 'flex-start',
   },
   benefitText: {
-    fontSize: 16,
-    color: "#374151",
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#475569',
+    marginLeft: 12,
     flex: 1,
-    lineHeight: 24,
+    lineHeight: isSmallDevice ? 20 : 22,
   },
-  actionButtons: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  primaryButton: {
+
+  // Official Button
+  officialButton: {
+    backgroundColor: '#3b82f6',
     flexDirection: 'row',
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 16,
-    backgroundColor: "#111827",
+    justifyContent: 'center',
+    paddingVertical: isSmallDevice ? 14 : 16,
     borderRadius: 12,
-    marginBottom: 12,
+    marginTop: 16,
   },
-  primaryButtonText: {
-    fontSize: 16,
+  officialButtonText: {
+    color: 'white',
+    fontSize: isSmallDevice ? 15 : 16,
     fontWeight: '600',
-    color: "#ffffff",
     marginRight: 8,
   },
-  secondaryButton: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
+
+  // News Section
+  newsContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: isSmallDevice ? 16 : 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
   },
-  secondaryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: "#111827",
-    marginLeft: 8,
+  newsTitle: {
+    fontSize: isSmallDevice ? 18 : 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 16,
   },
-  statusSection: {
-    padding: 16,
+  newsList: {
+    gap: 16,
+  },
+  newsItem: {
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
+    borderBottomColor: '#f1f5f9',
   },
-  statusTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: "#111827",
-    marginBottom: 12,
+  newsItemTitle: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#0f172a',
+    fontWeight: '500',
+    marginBottom: 4,
+    lineHeight: isSmallDevice ? 20 : 22,
   },
-  statusOptions: {
+  newsItemDate: {
+    fontSize: isSmallDevice ? 12 : 13,
+    color: '#64748b',
+  },
+  noNewsText: {
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#64748b',
+    fontWeight: '500',
+  },
+
+  // Share Section
+  shareContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: isSmallDevice ? 16 : 20,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  shareTitle: {
+    fontSize: isSmallDevice ? 18 : 20,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 16,
+  },
+  shareButtons: {
+    flexDirection: 'row',
     gap: 12,
   },
-  statusOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    borderRadius: 12,
-  },
-  statusOptionActive: {
-    backgroundColor: "#d1fae5",
-    borderColor: "#10b981",
-  },
-  statusOptionNotApplied: {
-    backgroundColor: "#fee2e2",
-    borderColor: "#ef4444",
-  },
-  statusOptionPending: {
-    backgroundColor: "#fef3c7",
-    borderColor: "#f59e0b",
-  },
-  statusRadio: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: "#d1d5db",
-    borderRadius: 10,
+  shareButton: {
+    width: isSmallDevice ? 44 : 48,
+    height: isSmallDevice ? 44 : 48,
+    borderRadius: isSmallDevice ? 22 : 24,
+    backgroundColor: '#64748b',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
   },
-  statusRadioActive: {
-    backgroundColor: "#10b981",
-    borderColor: "#10b981",
+
+  // Feedback
+  feedbackInput: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 12,
+    padding: isSmallDevice ? 12 : 16,
+    fontSize: isSmallDevice ? 14 : 15,
+    color: '#0f172a',
+    marginBottom: 16,
+    minHeight: 120,
+    textAlignVertical: 'top',
   },
-  statusRadioNotApplied: {
-    backgroundColor: "#ef4444",
-    borderColor: "#ef4444",
-  },
-  statusRadioPending: {
-    backgroundColor: "#f59e0b",
-    borderColor: "#f59e0b",
-  },
-  statusOptionText: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: "#374151",
-  },
-  statusOptionTextActive: {
-    color: "#111827",
-  },
-  infoSection: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  infoHeader: {
-    flexDirection: 'row',
+  submitButton: {
+    backgroundColor: '#0f172a',
+    paddingVertical: isSmallDevice ? 14 : 16,
+    borderRadius: 12,
     alignItems: 'center',
-    marginBottom: 12,
   },
-  infoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: "#111827",
-    marginLeft: 8,
-  },
-  infoText: {
-    fontSize: 16,
-    color: "#374151",
-    lineHeight: 24,
-  },
-  quickInfoSection: {
-    padding: 16,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  quickInfoItem: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  quickInfoLabel: {
-    fontSize: 12,
-    color: "#6b7280",
-    marginTop: 4,
-  },
-  quickInfoValue: {
-    fontSize: 14,
+  submitButtonText: {
+    color: 'white',
+    fontSize: isSmallDevice ? 15 : 16,
     fontWeight: '600',
-    color: "#111827",
-    marginTop: 2,
   },
-  // Modal
-  modalHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: "#111827",
-    marginLeft: 16,
+
+  // Bottom Padding
+  bottomPadding: {
+    height: 20,
   },
 });

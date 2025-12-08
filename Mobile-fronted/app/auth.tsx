@@ -80,7 +80,39 @@ export default function AuthScreen() {
         return;
       }
 
-      Alert.alert("Success", "Account created!");
+      // Create profile in profiles table
+      if (data.user) {
+        // Check if profile already exists
+        const { data: existingProfile } = await supabase
+          .from("profiles")
+          .select("id")
+          .eq("id", data.user.id)
+          .single();
+
+        if (!existingProfile) {
+          const { error: profileError } = await supabase
+            .from("profiles")
+            .insert({
+              id: data.user.id,
+              full_name: fullName,  // Use snake_case for DB
+              phone,
+              state,
+              location,
+              role,
+            });
+
+          if (profileError) {
+            console.error("Error creating profile:", profileError);
+            Alert.alert("Warning", "Account created but profile setup incomplete. You can update it later.");
+          } else {
+            console.log("✅ Profile created successfully");
+          }
+        } else {
+          console.log("ℹ️ Profile already exists, skipping creation");
+        }
+      }
+
+      Alert.alert("Success", "Account created! Please login.");
       setIsLogin(true);
     }
 

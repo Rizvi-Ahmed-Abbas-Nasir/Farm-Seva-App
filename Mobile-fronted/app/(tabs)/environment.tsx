@@ -31,9 +31,21 @@ import {
   Settings,
   ExternalLink
 } from 'lucide-react-native';
-import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import NetInfo from '@react-native-community/netinfo';
+import { useLanguage } from '@/contexts/LanguageContext';
+import Constants from 'expo-constants';
+
+// Conditionally import notifications (not supported in Expo Go SDK 53+)
+let Notifications: any = null;
+try {
+  Notifications = require('expo-notifications');
+} catch (error) {
+  console.warn('expo-notifications not available in this environment');
+}
+
+// Check if we're running in Expo Go
+const isExpoGo = Constants.appOwnership === 'expo';
 
 // Types
 interface EnvironmentMetric {
@@ -98,18 +110,23 @@ const WEATHER_API_KEY = "333c397bca044d41a41203942250412";
 const WEATHER_API_URL = 'https://api.weatherapi.com/v1';
 const LOCATION = 'Bhopal, MP';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-    shouldShowBanner: true,   // NEW
-    shouldShowList: true,     // NEW
-  }),
-});
+// Only set notification handler if available and not in Expo Go
+if (Notifications && !isExpoGo) {
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+}
+
 
 
 export default function EnvironmentScreen() {
+  const { t } = useLanguage();
   const [environmentData, setEnvironmentData] = useState<EnvironmentMetric[]>([]);
   const [sensorLocations, setSensorLocations] = useState<SensorLocation[]>([]);
   const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
@@ -139,16 +156,34 @@ export default function EnvironmentScreen() {
   }, []);
 
   const requestNotificationPermission = async () => {
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Permission required', 'Please enable notifications for weather alerts.');
+    if (!Notifications || isExpoGo) {
+      console.log('Notifications not available in Expo Go - skipping permission request');
+      return;
+    }
+
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Please enable notifications for weather alerts.');
+      }
+    } catch (error) {
+      console.warn('Failed to request notification permissions:', error);
     }
   };
 
   const setupNotificationListeners = () => {
-    Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
-    });
+    if (!Notifications || isExpoGo) {
+      console.log('Notifications not available in Expo Go - skipping listener setup');
+      return;
+    }
+
+    try {
+      Notifications.addNotificationReceivedListener((notification: any) => {
+        console.log('Notification received:', notification);
+      });
+    } catch (error) {
+      console.warn('Failed to set up notification listeners:', error);
+    }
   };
 
   const loadAllData = async () => {
@@ -411,6 +446,12 @@ export default function EnvironmentScreen() {
   };
 
   const sendNotification = async (title: string, body: string, category: string) => {
+    if (!Notifications || isExpoGo) {
+      // In Expo Go, just log the notification instead of sending it
+      console.log(`[NOTIFICATION] ${title}: ${body} (category: ${category})`);
+      return;
+    }
+
     try {
       await Notifications.scheduleNotificationAsync({
         content: {
@@ -568,7 +609,7 @@ export default function EnvironmentScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#3B82F6" />
-        <Text style={styles.loadingText}>Loading environment data...</Text>
+        <Text style={styles.loadingText}>{t('environment.loadingData')}</Text>
       </View>
     );
   }
@@ -584,8 +625,8 @@ export default function EnvironmentScreen() {
       {/* Header with Settings */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.title}>Environment Monitor</Text>
-          <Text style={styles.subtitle}>Real-time farm conditions</Text>
+          <Text style={styles.title}>{t('environment.title')}</Text>
+          <Text style={styles.subtitle}>{t('environment.subtitle')}</Text>
         </View>
         <TouchableOpacity
           style={styles.settingsButton}
@@ -599,7 +640,7 @@ export default function EnvironmentScreen() {
       <View style={styles.lastUpdatedContainer}>
         <Calendar size={14} color="#6B7280" />
         <Text style={styles.lastUpdatedText}>
-          Last updated: {lastUpdated || 'Just now'}
+          {t('environment.lastUpdated')}: {lastUpdated || t('environment.justNow')}
         </Text>
       </View>
 
@@ -621,23 +662,23 @@ export default function EnvironmentScreen() {
             <View style={styles.weatherStat}>
               <Thermometer size={20} color="#EF4444" />
               <Text style={styles.weatherValue}>{weatherData.temperature}°C</Text>
-              <Text style={styles.weatherLabel}>Temperature</Text>
+              <Text style={styles.weatherLabel}>{t('environment.temperature')}</Text>
             </View>
             <View style={styles.weatherStat}>
               <Droplets size={20} color="#3B82F6" />
               <Text style={styles.weatherValue}>{weatherData.humidity}%</Text>
-              <Text style={styles.weatherLabel}>Humidity</Text>
+              <Text style={styles.weatherLabel}>{t('environment.humidity')}</Text>
             </View>
             <View style={styles.weatherStat}>
               <Wind size={20} color="#10B981" />
               <Text style={styles.weatherValue}>{weatherData.windSpeed.toFixed(1)} m/s</Text>
-              <Text style={styles.weatherLabel}>Wind</Text>
+              <Text style={styles.weatherLabel}>{t('environment.wind')}</Text>
             </View>
           </View>
 
           {/* Weather Forecast */}
           <View style={styles.forecastContainer}>
-            <Text style={styles.forecastTitle}>5-Day Forecast</Text>
+            <Text style={styles.forecastTitle}>{t('environment.forecast')}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={styles.forecastRow}>
                 {weatherData.forecast.map((day, index) => (
@@ -662,7 +703,7 @@ export default function EnvironmentScreen() {
 
         color: '#374151'
       }}>
-        From Sensors
+        {t('environment.fromSensors')}
       </Text>      <View style={styles.gridContainer}>
         {environmentData.map((data) => (
           <TouchableOpacity
@@ -687,8 +728,8 @@ export default function EnvironmentScreen() {
       {/* Sensor Locations */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Sensor Locations</Text>
-          <Text style={styles.sectionCount}>{sensorLocations.length} locations</Text>
+          <Text style={styles.sectionTitle}>{t('environment.sensorLocations')}</Text>
+          <Text style={styles.sectionCount}>{sensorLocations.length} {t('environment.locations')}</Text>
         </View>
         {sensorLocations.map((location, index) => (
           <View key={index} style={styles.locationItem}>
@@ -726,7 +767,7 @@ export default function EnvironmentScreen() {
 
       {/* Recommendations */}
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Recommendations</Text>
+        <Text style={styles.sectionTitle}>{t('environment.recommendations')}</Text>
         {environmentData
           .filter(metric => metric.status !== 'normal')
           .map((metric, index) => (
@@ -739,10 +780,10 @@ export default function EnvironmentScreen() {
               </View>
               <View style={styles.recommendationContent}>
                 <Text style={styles.recommendationTitle}>
-                  {metric.label} {metric.status.toUpperCase()}
+                  {metric.label} {t(`environment.status.${metric.status}`).toUpperCase()}
                 </Text>
                 <Text style={styles.recommendationDescription}>
-                  Current: {metric.value} | Ideal: {metric.minThreshold}-{metric.maxThreshold}{metric.unit}
+                  {t('environment.current')}: {metric.value} | {t('environment.ideal')}: {metric.minThreshold}-{metric.maxThreshold}{metric.unit}
                 </Text>
               </View>
             </View>
@@ -759,7 +800,7 @@ export default function EnvironmentScreen() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Notification Settings</Text>
+              <Text style={styles.modalTitle}>{t('environment.notificationSettings')}</Text>
               <TouchableOpacity onPress={() => setSettingsModalVisible(false)}>
                 <Text style={styles.modalClose}>✕</Text>
               </TouchableOpacity>
@@ -769,8 +810,8 @@ export default function EnvironmentScreen() {
               <View style={styles.notificationToggleContent}>
                 <Bell size={20} color="#6B7280" />
                 <View>
-                  <Text style={styles.notificationToggleTitle}>Push Notifications</Text>
-                  <Text style={styles.notificationToggleSubtitle}>Receive alerts for critical conditions</Text>
+                  <Text style={styles.notificationToggleTitle}>{t('environment.pushNotifications')}</Text>
+                  <Text style={styles.notificationToggleSubtitle}>{t('environment.pushNotificationsDesc')}</Text>
                 </View>
               </View>
               <Switch
@@ -795,7 +836,7 @@ export default function EnvironmentScreen() {
               style={styles.modalButton}
               onPress={() => setSettingsModalVisible(false)}
             >
-              <Text style={styles.modalButtonText}>Save Settings</Text>
+              <Text style={styles.modalButtonText}>{t('environment.saveSettings')}</Text>
             </TouchableOpacity>
           </View>
         </View>

@@ -4,6 +4,7 @@ import { router } from 'expo-router';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, LogOut } from 'lucide-react-native';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 // API Configuration
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
@@ -17,10 +18,11 @@ type FarmerProfile = {
   location?: string;
   role?: string;
   image?: string;
-  full_name?: string; // Some backends use snake_case
+  full_name?: string;
 };
 
 export default function ProfileScreen() {
+  const { t } = useLanguage();
   const [profile, setProfile] = useState<FarmerProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -38,23 +40,23 @@ export default function ProfileScreen() {
       }
 
       console.log('🔍 Fetching profile...');
-      
+
       const response = await axios.get(`${API_URL}/profile`, {
-        headers: { 
+        headers: {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
       console.log('✅ Profile response:', JSON.stringify(response.data, null, 2));
-      
+
       // Handle different response structures
       let profileData = null;
-      
+
       // Option 1: { success: true, data: {...} }
       if (response.data.success && response.data.data) {
         profileData = response.data.data;
-      } 
+      }
       // Option 2: Direct user object
       else if (response.data.id || response.data.email) {
         profileData = response.data;
@@ -70,7 +72,7 @@ export default function ProfileScreen() {
       }
 
       console.log('📊 Processed profile data:', profileData);
-      
+
       // Normalize field names (handle both camelCase and snake_case)
       const normalizedProfile = {
         id: profileData.id || '',
@@ -85,15 +87,15 @@ export default function ProfileScreen() {
 
       console.log('🎯 Normalized profile:', normalizedProfile);
       setProfile(normalizedProfile);
-      
+
     } catch (error: any) {
       console.error("❌ Error fetching profile:", error);
-      
+
       // Detailed error logging
       if (error.response) {
         console.log('Response status:', error.response.status);
         console.log('Response data:', error.response.data);
-        
+
         if (error.response.status === 401) {
           Alert.alert("Session Expired", "Please login again");
           router.replace("/auth");
@@ -109,7 +111,7 @@ export default function ProfileScreen() {
         console.log('Request setup error:', error.message);
         Alert.alert("Error", "Unable to load profile");
       }
-      
+
       // Set default profile on error
       setProfile({
         id: '',
@@ -133,7 +135,7 @@ export default function ProfileScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.loadingText}>Loading profile...</Text>
+        <Text style={styles.loadingText}>{t('common.loading')}</Text>
       </View>
     );
   }
@@ -153,8 +155,7 @@ export default function ProfileScreen() {
 
         <Text style={styles.name}>{profile?.fullName || 'User'}</Text>
         <Text style={styles.email}>{profile?.email || 'No email'}</Text>
-        
-        {/* Show role as badge - with safe access */}
+
         {profile?.role && (
           <View style={styles.roleBadge}>
             <Text style={styles.roleText}>
@@ -166,51 +167,51 @@ export default function ProfileScreen() {
         {/* Details with safe access */}
         <View style={styles.infoBox}>
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Phone</Text>
-            <Text style={styles.infoValue}>{profile?.phone || 'Not provided'}</Text>
+            <Text style={styles.infoLabel}>{t('profile.phone')}</Text>
+            <Text style={styles.infoValue}>{profile?.phone || t('profile.notProvided')}</Text>
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>State</Text>
-            <Text style={styles.infoValue}>{profile?.state || 'Not provided'}</Text>
+            <Text style={styles.infoLabel}>{t('profile.state')}</Text>
+            <Text style={styles.infoValue}>{profile?.state || t('profile.notProvided')}</Text>
           </View>
 
           <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>City / Location</Text>
-            <Text style={styles.infoValue}>{profile?.location || 'Not provided'}</Text>
+            <Text style={styles.infoLabel}>{t('profile.location')}</Text>
+            <Text style={styles.infoValue}>{profile?.location || t('profile.notProvided')}</Text>
           </View>
 
-        
+
         </View>
       </View>
 
       <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
         <LogOut size={20} color="white" style={styles.logoutIcon} />
-        <Text style={styles.logoutText}>Logout</Text>
+        <Text style={styles.logoutText}>{t('profile.logout')}</Text>
       </TouchableOpacity>
 
-    
+
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: '#e8f5e9' 
+  container: {
+    flex: 1,
+    backgroundColor: '#e8f5e9'
   },
-  contentContainer: { 
+  contentContainer: {
     padding: 20,
-    paddingBottom: 40 
+    paddingBottom: 150
   },
-  loadingText: { 
-    textAlign: 'center', 
+  loadingText: {
+    textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
     color: '#666'
   },
-  messageText: { 
-    textAlign: 'center', 
+  messageText: {
+    textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
     color: '#666'
@@ -242,21 +243,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatar: { 
-    width: 120, 
-    height: 120, 
-    borderRadius: 60 
+  avatar: {
+    width: 120,
+    height: 120,
+    borderRadius: 60
   },
-  name: { 
-    fontSize: 26, 
-    fontWeight: 'bold', 
+  name: {
+    fontSize: 26,
+    fontWeight: 'bold',
     marginBottom: 6,
     color: '#2e7d32'
   },
-  email: { 
-    fontSize: 16, 
-    color: '#666', 
-    marginBottom: 8 
+  email: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 8
   },
   roleBadge: {
     backgroundColor: '#c8e6c9',
@@ -281,15 +282,15 @@ const styles = StyleSheet.create({
   infoRow: {
     marginBottom: 16,
   },
-  infoLabel: { 
-    color: "#2e7d32", 
-    fontWeight: "bold", 
+  infoLabel: {
+    color: "#2e7d32",
+    fontWeight: "bold",
     fontSize: 14,
     marginBottom: 4
   },
-  infoValue: { 
-    fontSize: 16, 
-    color: "#333" 
+  infoValue: {
+    fontSize: 16,
+    color: "#333"
   },
   logoutButton: {
     backgroundColor: "#dd2c00",
@@ -306,10 +307,10 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   logoutIcon: { marginRight: 8 },
-  logoutText: { 
-    color: "white", 
+  logoutText: {
+    color: "white",
     fontWeight: "bold",
-    fontSize: 16 
+    fontSize: 16
   },
   button: {
     backgroundColor: "#2e7d32",
@@ -320,9 +321,9 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     minWidth: 120,
   },
-  buttonText: { 
-    color: "white", 
-    fontWeight: "bold" 
+  buttonText: {
+    color: "white",
+    fontWeight: "bold"
   },
   debugContainer: {
     marginTop: 20,

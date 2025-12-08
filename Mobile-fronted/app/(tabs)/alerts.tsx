@@ -36,6 +36,7 @@ import { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import Papa from "papaparse";
 import { LinearGradient } from 'expo-linear-gradient';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 export interface AlertItem {
   Type: string;
@@ -191,6 +192,7 @@ const fetchDataFromGoogleSheets = async (): Promise<AlertItem[]> => {
 
 
 const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
+  const { t } = useLanguage();
   const navigation = useNavigation<NavigationProp>();
   const router = useRouter();
   const [data, setData] = useState<AlertData[]>([]);
@@ -709,7 +711,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
             onPress={() => toggleExpand(alert.id)}
           >
             <Text style={styles.expandText}>
-              {isExpanded ? "Show Less" : "View Details"}
+              {isExpanded ? t('common.showLess') : t('common.viewDetails')}
             </Text>
             <TrendingUp
               size={16}
@@ -724,7 +726,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <View style={styles.detailSection}>
                 <View style={styles.detailHeader}>
                   <AlertCircle size={16} color="#3B82F6" />
-                  <Text style={styles.detailTitle}>Disease Overview</Text>
+                  <Text style={styles.detailTitle}>{t('alerts.diseaseOverview')}</Text>
                 </View>
                 <Text style={styles.detailText}>{alert.DiseaseOverview}</Text>
               </View>
@@ -732,7 +734,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <View style={styles.detailSection}>
                 <View style={styles.detailHeader}>
                   <Shield size={16} color="#10B981" />
-                  <Text style={styles.detailTitle}>Preventive Measures</Text>
+                  <Text style={styles.detailTitle}>{t('alerts.preventiveMeasures')}</Text>
                 </View>
                 <Text style={styles.detailText}>{alert.PossiblePreventiveMeasure}</Text>
               </View>
@@ -740,14 +742,14 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <View style={styles.detailSection}>
                 <View style={styles.detailHeader}>
                   <Clock size={16} color="#6B7280" />
-                  <Text style={styles.detailTitle}>Update Information</Text>
+                  <Text style={styles.detailTitle}>{t('alerts.updateInformation')}</Text>
                 </View>
                 <View style={styles.updateInfo}>
                   <Text style={styles.updateText}>
-                    <Text style={styles.bold}>Last Updated:</Text> {alert.UpdatedOn} ({alert.UpdatedDate})
+                    <Text style={styles.bold}>{t('alerts.lastUpdated')}:</Text> {alert.UpdatedOn} ({alert.UpdatedDate})
                   </Text>
                   <Text style={styles.updateText}>
-                    <Text style={styles.bold}>Reported:</Text> {alert.MonthYear}
+                    <Text style={styles.bold}>{t('alerts.reported')}:</Text> {alert.MonthYear}
                   </Text>
                 </View>
               </View>
@@ -755,12 +757,12 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <View style={styles.actionButtons}>
                 <TouchableOpacity style={styles.actionButton}>
                   <Eye size={16} color="#3B82F6" />
-                  <Text style={styles.actionButtonText}>View Full Report</Text>
+                  <Text style={styles.actionButtonText}>{t('alerts.viewFullReport')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={[styles.actionButton, styles.primaryButton]}>
                   <Download size={16} color="#FFFFFF" />
                   <Text style={[styles.actionButtonText, styles.primaryButtonText]}>
-                    Export Data
+                    {t('alerts.exportData')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -777,8 +779,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
         <View style={styles.loadingSpinner}>
           <ActivityIndicator size="large" color="#3B82F6" />
         </View>
-        <Text style={styles.loadingText}>Loading Alert Data...</Text>
-        <Text style={styles.loadingSubtext}>Fetching from monitoring systems</Text>
+        <Text style={styles.loadingText}>{t('alerts.loadingAlertData')}</Text>
+        <Text style={styles.loadingSubtext}>{t('alerts.fetchingFromSystems')}</Text>
       </View>
     );
   }
@@ -798,8 +800,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
     >
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>Risk & Alerts</Text>
-          <Text style={styles.subtitle}>Real-time monitoring of farm health and security</Text>
+          <Text style={styles.title}>{t('alerts.title')}</Text>
+          <Text style={styles.subtitle}>{t('alerts.subtitle')}</Text>
         </View>
 
         <View style={styles.notificationBadge}>
@@ -819,8 +821,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <AlertTriangle size={28} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryValue}>{criticalAlerts.length}</Text>
-            <Text style={styles.summaryLabel}>Critical</Text>
-            <Text style={styles.summarySubtitle}>Requires action</Text>
+            <Text style={styles.summaryLabel}>{t('alerts.critical')}</Text>
+            <Text style={styles.summarySubtitle}>{t('alerts.requiresAction')}</Text>
           </View>
 
           <View style={[styles.summaryCard, styles.warningSummary]}>
@@ -828,8 +830,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <Shield size={28} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryValue}>{warningAlerts.length}</Text>
-            <Text style={styles.summaryLabel}>Warnings</Text>
-            <Text style={styles.summarySubtitle}>Needs attention</Text>
+            <Text style={styles.summaryLabel}>{t('alerts.warnings')}</Text>
+            <Text style={styles.summarySubtitle}>{t('alerts.needsAttention')}</Text>
           </View>
 
           <View style={[styles.summaryCard, styles.infoSummary]}>
@@ -837,8 +839,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <Bell size={28} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryValue}>{infoAlerts.length}</Text>
-            <Text style={styles.summaryLabel}>Info</Text>
-            <Text style={styles.summarySubtitle}>For monitoring</Text>
+            <Text style={styles.summaryLabel}>{t('alerts.info')}</Text>
+            <Text style={styles.summarySubtitle}>{t('alerts.forMonitoring')}</Text>
           </View>
 
           <View style={[styles.summaryCard, styles.totalSummary]}>
@@ -846,8 +848,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <AlertCircle size={28} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryValue}>{data.length}</Text>
-            <Text style={styles.summaryLabel}>Total</Text>
-            <Text style={styles.summarySubtitle}>All active alerts</Text>
+            <Text style={styles.summaryLabel}>{t('alerts.total')}</Text>
+            <Text style={styles.summarySubtitle}>{t('alerts.allActiveAlerts')}</Text>
           </View>
         </ScrollView>
       </View>
@@ -856,7 +858,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
       <View style={styles.filterSection}>
         <View style={styles.filterTitleContainer}>
           <Filter size={18} color="#6B7280" />
-          <Text style={styles.filterTitle}>Filter Alerts</Text>
+          <Text style={styles.filterTitle}>{t('alerts.filterAlerts')}</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
           <TouchableOpacity
@@ -864,7 +866,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
             onPress={() => setFilter("all")}
           >
             <Text style={[styles.filterText, filter === "all" && styles.filterTextActive]}>
-              All Alerts
+              {t('alerts.allAlerts')}
             </Text>
           </TouchableOpacity>
 
@@ -874,7 +876,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
           >
             <AlertTriangle size={16} color={filter === "critical" ? "#FFFFFF" : "#EF4444"} />
             <Text style={[styles.filterText, filter === "critical" && styles.filterTextActive]}>
-              Critical ({criticalAlerts.length})
+              {t('alerts.critical')} ({criticalAlerts.length})
             </Text>
           </TouchableOpacity>
 
@@ -884,7 +886,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
           >
             <Shield size={16} color={filter === "warning" ? "#FFFFFF" : "#F59E0B"} />
             <Text style={[styles.filterText, filter === "warning" && styles.filterTextActive]}>
-              Warnings ({warningAlerts.length})
+              {t('alerts.warnings')} ({warningAlerts.length})
             </Text>
           </TouchableOpacity>
 
@@ -894,7 +896,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
           >
             <Bell size={16} color={filter === "info" ? "#FFFFFF" : "#3B82F6"} />
             <Text style={[styles.filterText, filter === "info" && styles.filterTextActive]}>
-              Info ({infoAlerts.length})
+              {t('alerts.info')} ({infoAlerts.length})
             </Text>
           </TouchableOpacity>
         </ScrollView>
@@ -906,8 +908,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
           <View style={styles.sectionTitleContainer}>
             <Activity size={24} color="#3B82F6" />
             <View style={{ marginLeft: 12 }}>
-              <Text style={styles.sectionTitle}> Risk Assessment</Text>
-              <Text style={styles.sectionSubtitle}>Live Track of livestock health metrics</Text>
+              <Text style={styles.sectionTitle}>{t('alerts.riskAssessment')}</Text>
+              <Text style={styles.sectionSubtitle}>{t('alerts.liveTrackMetrics')}</Text>
             </View>
           </View>
 
@@ -921,8 +923,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <Thermometer size={20} color="#D97706" />
             </View>
             <Text style={styles.metricValue}>39.2°C</Text>
-            <Text style={styles.metricLabel}>Avg Temperature</Text>
-            <Text style={[styles.metricStatus, { color: '#10B981' }]}>Normal</Text>
+            <Text style={styles.metricLabel}>{t('alerts.avgTemperature')}</Text>
+            <Text style={[styles.metricStatus, { color: '#10B981' }]}>{t('alerts.normal')}</Text>
           </View>
 
           <View style={styles.metricCard}>
@@ -930,8 +932,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <Syringe size={20} color="#1D4ED8" />
             </View>
             <Text style={styles.metricValue}>85%</Text>
-            <Text style={styles.metricLabel}>Vaccination</Text>
-            <Text style={[styles.metricStatus, { color: '#F59E0B' }]}>Due Soon</Text>
+            <Text style={styles.metricLabel}>{t('alerts.vaccination')}</Text>
+            <Text style={[styles.metricStatus, { color: '#F59E0B' }]}>{t('alerts.dueSoon')}</Text>
           </View>
 
           <View style={styles.metricCard}>
@@ -939,8 +941,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <Heart size={20} color="#047857" />
             </View>
             <Text style={styles.metricValue}>2</Text>
-            <Text style={styles.metricLabel}>Health Issues</Text>
-            <Text style={[styles.metricStatus, { color: '#EF4444' }]}>Needs Check</Text>
+            <Text style={styles.metricLabel}>{t('alerts.healthIssues')}</Text>
+            <Text style={[styles.metricStatus, { color: '#EF4444' }]}>{t('alerts.needsCheck')}</Text>
           </View>
 
           <View style={styles.metricCard}>
@@ -948,8 +950,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               <Calendar size={20} color="#7C3AED" />
             </View>
             <Text style={styles.metricValue}>7</Text>
-            <Text style={styles.metricLabel}>Days</Text>
-            <Text style={[styles.metricStatus, { color: '#3B82F6' }]}>Next Checkup</Text>
+            <Text style={styles.metricLabel}>{t('alerts.days')}</Text>
+            <Text style={[styles.metricStatus, { color: '#3B82F6' }]}>{t('alerts.nextCheckup')}</Text>
           </View>
         </View>
 
@@ -1474,18 +1476,19 @@ const styles = StyleSheet.create({
   healthMetrics: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 12,
     marginBottom: 24,
   },
   metricCard: {
-    flex: 1,
-    minWidth: '48%',
+    width: '48%', // Fixed width for 2 columns with gap
     backgroundColor: '#F9FAFB',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
     borderWidth: 1,
     borderColor: '#E5E7EB',
+    marginBottom: 12,
   },
   metricIcon: {
     width: 40,
@@ -1514,11 +1517,11 @@ const styles = StyleSheet.create({
   riskGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: 12,
   },
   riskCard: {
-    flex: 1,
-    minWidth: '48%',
+    width: '48%', // Fixed width for 2 columns with gap
     borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1526,6 +1529,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 4,
     overflow: 'hidden',
+    marginBottom: 12,
   },
   riskCardGradient: {
     flex: 1,

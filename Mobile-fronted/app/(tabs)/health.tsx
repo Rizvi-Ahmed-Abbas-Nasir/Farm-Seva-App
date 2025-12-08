@@ -26,6 +26,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { ScheduleGenerator } from '@/components/ScheduleGenerator';
 import { CountdownTimer } from '@/components/CountdownTimer';
+import { useLanguage } from '@/contexts/LanguageContext';
 
 type Severity = 'high' | 'medium' | 'low';
 
@@ -108,6 +109,7 @@ Notifications.setNotificationHandler({
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
 
 export default function HealthScreen() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -520,8 +522,8 @@ export default function HealthScreen() {
         colors={['#10B981', '#059669']}
         style={styles.header}
       >
-        <Text style={styles.title}>Animal Health Center</Text>
-        <Text style={styles.subtitle}>Real-time health monitoring & care</Text>
+        <Text style={styles.title}>{t('health.title')}</Text>
+        <Text style={styles.subtitle}>{t('health.subtitle')}</Text>
       </LinearGradient>
 
       {/* Health Overview Cards */}
@@ -536,7 +538,7 @@ export default function HealthScreen() {
                 <Heart size={20} color="#059669" fill="#059669" />
               </View>
               <Text style={styles.overviewValue}>{healthStats.healthyPercentage}%</Text>
-              <Text style={styles.overviewLabel}>Healthy</Text>
+              <Text style={styles.overviewLabel}>{t('health.healthy')}</Text>
               <View style={styles.trendBadge}>
                 <TrendingUp size={10} color="#059669" />
                 <Text style={styles.trendText}>+2.1%</Text>
@@ -553,9 +555,9 @@ export default function HealthScreen() {
                 <Thermometer size={20} color="#D97706" />
               </View>
               <Text style={styles.overviewValue}>{healthStats.avgTemperature}°C</Text>
-              <Text style={styles.overviewLabel}>Avg Temp</Text>
+              <Text style={styles.overviewLabel}>{t('health.avgTemp')}</Text>
               <View style={styles.trendBadge}>
-                <Text style={styles.trendText}>Normal</Text>
+                <Text style={styles.trendText}>{t('health.normal')}</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
@@ -569,9 +571,9 @@ export default function HealthScreen() {
                 <Syringe size={20} color="#2563EB" />
               </View>
               <Text style={styles.overviewValue}>{healthStats.vaccinatedPercentage}%</Text>
-              <Text style={styles.overviewLabel}>Vaccinated</Text>
+              <Text style={styles.overviewLabel}>{t('health.vaccinated')}</Text>
               <View style={styles.trendBadge}>
-                <Text style={styles.trendText}>On Track</Text>
+                <Text style={styles.trendText}>{t('health.onTrack')}</Text>
               </View>
             </LinearGradient>
           </TouchableOpacity>
@@ -586,8 +588,8 @@ export default function HealthScreen() {
               <Calendar size={18} color="#3B82F6" />
             </View>
             <View>
-              <Text style={styles.sectionTitle}>Vaccination Schedule</Text>
-              <Text style={styles.healthLabel}>Health</Text>
+              <Text style={styles.sectionTitle}>{t('health.vaccinations')}</Text>
+              <Text style={styles.healthLabel}>{t('health.healthLabel')}</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
@@ -596,10 +598,10 @@ export default function HealthScreen() {
               onPress={() => setShowVaccinationGenerator(true)}
             >
               <Sparkles size={14} color="#3B82F6" />
-              <Text style={styles.autoScheduleText}>Auto</Text>
+              <Text style={styles.autoScheduleText}>{t('common.auto')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/vaccination')}>
-              <Text style={styles.seeAllText}>See All</Text>
+              <Text style={styles.seeAllText}>{t('common.seeAll')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -608,7 +610,7 @@ export default function HealthScreen() {
         {nextVaccinationDate && (
           <CountdownTimer
             targetDate={nextVaccinationDate}
-            label="Next Vaccination In"
+            label={t('health.nextVaccinationIn')}
             color="#3B82F6"
             backgroundColor="#EFF6FF"
           />
@@ -617,24 +619,24 @@ export default function HealthScreen() {
         {loading ? (
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="small" color="#3B82F6" />
-            <Text style={styles.loadingText}>Loading vaccinations...</Text>
+            <Text style={styles.loadingText}>{t('health.loadingVaccinations')}</Text>
           </View>
         ) : upcomingVaccinations.length === 0 ? (
           <View style={styles.emptyState}>
             <Bell size={24} color="#9CA3AF" />
-            <Text style={styles.emptyStateText}>No upcoming vaccinations</Text>
-            <Text style={styles.emptyStateSubtext}>Add your first vaccination schedule</Text>
+            <Text style={styles.emptyStateText}>{t('health.noUpcomingVaccinations')}</Text>
+            <Text style={styles.emptyStateSubtext}>{t('health.addFirstVaccination')}</Text>
             <TouchableOpacity
               style={styles.emptyStateButton}
               onPress={() => router.push('/addVaccination')}
             >
-              <Text style={styles.emptyStateButtonText}>Add Vaccination</Text>
+              <Text style={styles.emptyStateButtonText}>{t('health.addVaccination')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
             <Text style={styles.resultCount}>
-              Showing {upcomingVaccinations.length} upcoming vaccination{upcomingVaccinations.length !== 1 ? 's' : ''}
+              {t('health.showing')} {upcomingVaccinations.length} {upcomingVaccinations.length === 1 ? t('health.upcomingVaccination') : t('health.upcomingVaccinations')}
             </Text>
             {upcomingVaccinations.map((vaccination, index) => (
               <TouchableOpacity
@@ -656,7 +658,7 @@ export default function HealthScreen() {
                       {vaccination.isAuto && (
                         <View style={styles.autoBadge}>
                           <Sparkles size={10} color="#3B82F6" />
-                          <Text style={styles.autoBadgeText}>Auto</Text>
+                          <Text style={styles.autoBadgeText}>{t('common.auto')}</Text>
                         </View>
                       )}
                     </View>
@@ -700,8 +702,8 @@ export default function HealthScreen() {
               <Stethoscope size={18} color="#059669" />
             </View>
             <View>
-              <Text style={styles.sectionTitle}>Animal Checkups</Text>
-              <Text style={styles.healthLabel}>Health</Text>
+              <Text style={styles.sectionTitle}>{t('health.checkups')}</Text>
+              <Text style={styles.healthLabel}>{t('health.healthLabel')}</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
@@ -710,10 +712,10 @@ export default function HealthScreen() {
               onPress={() => setShowCheckupGenerator(true)}
             >
               <Sparkles size={14} color="#10B981" />
-              <Text style={[styles.autoScheduleText, { color: '#10B981' }]}>Auto</Text>
+              <Text style={[styles.autoScheduleText, { color: '#10B981' }]}>{t('common.auto')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => router.push('/checkup')}>
-              <Text style={styles.seeAllText}>See All</Text>
+              <Text style={styles.seeAllText}>{t('common.seeAll')}</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -722,7 +724,7 @@ export default function HealthScreen() {
         {nextCheckupDate && (
           <CountdownTimer
             targetDate={nextCheckupDate}
-            label="Next Checkup In"
+            label={t('health.nextCheckupIn')}
             color="#10B981"
             backgroundColor="#D1FAE5"
           />
@@ -733,12 +735,12 @@ export default function HealthScreen() {
         ) : upcomingCheckups.length === 0 ? (
           <View style={styles.emptyState}>
             <Stethoscope size={24} color="#9CA3AF" />
-            <Text style={styles.emptyStateText}>No upcoming checkups</Text>
+            <Text style={styles.emptyStateText}>{t('health.noUpcomingCheckups')}</Text>
             <TouchableOpacity
               style={[styles.emptyStateButton, { backgroundColor: '#10B981' }]}
               onPress={() => router.push('/addCheckup')}
             >
-              <Text style={styles.emptyStateButtonText}>Schedule Checkup</Text>
+              <Text style={styles.emptyStateButtonText}>{t('health.scheduleCheckup')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -761,7 +763,7 @@ export default function HealthScreen() {
                     {checkup.isAuto && (
                       <View style={[styles.autoBadge, { backgroundColor: '#D1FAE5', borderColor: '#10B981' }]}>
                         <Sparkles size={10} color="#10B981" />
-                        <Text style={[styles.autoBadgeText, { color: '#10B981' }]}>Auto</Text>
+                        <Text style={[styles.autoBadgeText, { color: '#10B981' }]}>{t('common.auto')}</Text>
                       </View>
                     )}
                   </View>
@@ -791,7 +793,7 @@ export default function HealthScreen() {
             <View style={[styles.sectionIconBg, { backgroundColor: '#FEE2E2' }]}>
               <AlertCircle size={18} color="#EF4444" />
             </View>
-            <Text style={styles.sectionTitle}>Health Alerts</Text>
+            <Text style={styles.sectionTitle}>{t('health.healthAlerts')}</Text>
           </View>
           <TouchableOpacity onPress={() => router.push('/(tabs)/alerts')}>
             <View style={styles.alertCount}>

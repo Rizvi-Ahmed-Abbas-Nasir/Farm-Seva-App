@@ -1,264 +1,1047 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { SquareCheck as CheckSquare, Clock, Users, CircleAlert as AlertCircle } from 'lucide-react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  Alert,
+  Animated,
+  RefreshControl,
+  ActivityIndicator,
+} from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLanguage } from '@/contexts/LanguageContext';
+import { router } from 'expo-router';
+
+// API Configuration
+const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+
+interface Task {
+  id: string;
+  task_name: string;
+  description?: string;
+  task_date: string;
+  task_time: string;
+  goal?: string;
+  completed: boolean;
+  created_at: string;
+}
+
+interface TaskFormData {
+  task_name: string;
+  description: string;
+  task_date: string;
+  task_time: string;
+  goal: string;
+}
 
 export default function TasksScreen() {
-  const todayTasks = [
-    { 
-      id: 1, 
-      title: 'Morning Feed Distribution', 
-      location: 'All Areas', 
-      assignee: 'John Smith',
-      priority: 'high',
-      completed: true,
-      time: '06:00 AM'
-    },
-    { 
-      id: 2, 
-      title: 'Vaccination - Pig Pen 3', 
-      location: 'Pig Pen 3', 
-      assignee: 'Maria Garcia',
-      priority: 'high',
-      completed: false,
-      time: '09:30 AM'
-    },
-    { 
-      id: 3, 
-      title: 'Cleaning - Broiler House 1', 
-      location: 'Broiler House 1', 
-      assignee: 'David Johnson',
-      priority: 'medium',
-      completed: false,
-      time: '11:00 AM'
-    },
-    { 
-      id: 4, 
-      title: 'Health Check - Layer Cages', 
-      location: 'Layer Cage Area', 
-      assignee: 'Sarah Wilson',
-      priority: 'medium',
-      completed: false,
-      time: '02:00 PM'
-    },
-  ];
+  const { t } = useLanguage();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState<TaskFormData>({
+    task_name: '',
+    description: '',
+    task_date: '',
+    task_time: '',
+    goal: '',
+  });
 
-  const upcomingTasks = [
-    { 
-      title: 'Weekly Deep Clean', 
-      location: 'Entire Facility', 
-      date: 'Tomorrow',
-      assignee: 'All Staff'
-    },
-    { 
-      title: 'Veterinary Inspection', 
-      location: 'All Areas', 
-      date: 'Dec 28',
-      assignee: 'Dr. Anderson'
-    },
-    { 
-      title: 'Feed Stock Delivery', 
-      location: 'Storage Area', 
-      date: 'Dec 30',
-      assignee: 'John Smith'
-    },
-  ];
+  const slideAnim = useRef(new Animated.Value(0)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high': return '#EF4444';
-      case 'medium': return '#F59E0B';
-      case 'low': return '#10B981';
-      default: return '#6B7280';
+  useEffect(() => {
+    fetchTasks();
+    animateHeader();
+  }, []);
+
+  const animateHeader = () => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(slideAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  const fetchTasks = async () => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        console.log('No token found');
+        setLoading(false);
+        Alert.alert(
+          'Authentication Required',
+          'Please login to view your tasks.',
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                router.replace('/auth');
+              }
+            }
+          ]
+        );
+        return;
+      }
+
+      console.log('📡 Fetching tasks from:', `${API_URL}/tasks`);
+      const response = await fetch(`${API_URL}/tasks`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('📊 Response status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        
+        // Handle 401 Unauthorized (invalid/expired token)
+        if (response.status === 401) {
+          console.error('❌ Authentication failed:', errorData.error);
+          await AsyncStorage.removeItem('userToken');
+          Alert.alert(
+            'Session Expired',
+            'Your session has expired. Please login again.',
+            [
+              {
+                text: 'OK',
+                onPress: () => {
+                  router.replace('/auth');
+                }
+              }
+            ]
+          );
+          setTasks([]);
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+        
+        throw new Error(errorData.error || `Failed to fetch tasks: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Tasks fetched successfully:', result.count || 0);
+      
+      if (result.success && Array.isArray(result.data)) {
+        setTasks(result.data);
+      } else {
+        setTasks([]);
+      }
+    } catch (error: any) {
+      console.error('❌ Error fetching tasks:', error);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to load tasks. Please try again.',
+        [{ text: 'OK' }]
+      );
+      setTasks([]);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  const toggleTaskComplete = (taskId: number) => {
-    // In a real app, this would update the task status
-    console.log(`Toggle task ${taskId} completion`);
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchTasks();
   };
 
+  const handleInputChange = (field: keyof TaskFormData, value: string) => {
+    setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const formatDateForInput = (dateString: string) => {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    return date.toISOString().split('T')[0];
+  };
+
+  const formatTimeForInput = (timeString: string) => {
+    if (!timeString) return '';
+    return timeString.substring(0, 5); // Format: HH:MM
+  };
+
+  const handleSubmit = async () => {
+    console.log('🚀 Submit button clicked');
+    console.log('📝 Form data:', formData);
+    
+    if (!formData.task_name.trim()) {
+      console.log('❌ Validation failed: Task name is empty');
+      Alert.alert('Error', 'Please enter a task name');
+      return;
+    }
+
+    if (!formData.task_date) {
+      console.log('❌ Validation failed: Task date is empty');
+      Alert.alert('Error', 'Please select a date');
+      return;
+    }
+
+    if (!formData.task_time) {
+      console.log('❌ Validation failed: Task time is empty');
+      Alert.alert('Error', 'Please select a time');
+      return;
+    }
+
+    console.log('✅ Validation passed, submitting task...');
+    setSubmitting(true);
+    
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        console.log('❌ No token found');
+        Alert.alert('Error', 'Please login to create tasks');
+        setSubmitting(false);
+        return;
+      }
+
+      const requestBody = {
+        task_name: formData.task_name.trim(),
+        description: formData.description.trim() || null,
+        task_date: formData.task_date,
+        task_time: formData.task_time,
+        goal: formData.goal.trim() || null,
+      };
+
+      console.log('📡 Making API call to:', `${API_URL}/tasks`);
+      console.log('📦 Request body:', JSON.stringify(requestBody, null, 2));
+      console.log('🔑 Token exists:', !!token);
+
+      const response = await fetch(`${API_URL}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('📊 Response status:', response.status);
+      console.log('📊 Response ok:', response.ok);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ API Error Response:', errorText);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: errorText || 'Unknown error' };
+        }
+        
+        console.error('❌ Parsed error data:', errorData);
+        
+        if (response.status === 401) {
+          console.log('🔒 Unauthorized - removing token');
+          await AsyncStorage.removeItem('userToken');
+          Alert.alert(
+            'Session Expired',
+            'Your session has expired. Please login again.',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.replace('/auth')
+              }
+            ]
+          );
+          setShowForm(false);
+          setSubmitting(false);
+          return;
+        }
+        
+        throw new Error(errorData.error || errorData.message || `Failed to create task (${response.status})`);
+      }
+
+      const result = await response.json();
+      console.log('✅ API Response:', JSON.stringify(result, null, 2));
+      
+      if (result.success) {
+        console.log('✅ Task created successfully!');
+        Alert.alert('Success', 'Task created successfully!');
+        setFormData({
+          task_name: '',
+          description: '',
+          task_date: '',
+          task_time: '',
+          goal: '',
+        });
+        setShowForm(false);
+        fetchTasks();
+      } else {
+        console.log('⚠️ Response success is false:', result);
+        Alert.alert('Error', result.message || 'Failed to create task');
+      }
+    } catch (error: any) {
+      console.error('❌ Error creating task:', error);
+      console.error('❌ Error stack:', error.stack);
+      Alert.alert(
+        'Error',
+        error.message || 'Failed to create task. Please check your connection and try again.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleTaskComplete = async (taskId: string, currentStatus: boolean) => {
+    try {
+      const token = await AsyncStorage.getItem('userToken');
+      if (!token) {
+        Alert.alert('Error', 'Please login to update tasks');
+        return;
+      }
+
+      const response = await fetch(`${API_URL}/tasks/${taskId}/toggle`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ completed: !currentStatus }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        
+        if (response.status === 401) {
+          await AsyncStorage.removeItem('userToken');
+          Alert.alert(
+            'Session Expired',
+            'Your session has expired. Please login again.',
+            [
+              {
+                text: 'OK',
+                onPress: () => router.replace('/auth')
+              }
+            ]
+          );
+          return;
+        }
+        
+        throw new Error(errorData.error || 'Failed to update task');
+      }
+
+      const result = await response.json();
+      if (result.success) {
+        fetchTasks();
+      }
+    } catch (error: any) {
+      console.error('Error updating task:', error);
+      Alert.alert('Error', error.message || 'Failed to update task. Please try again.');
+    }
+  };
+
+  const deleteTask = async (taskId: string) => {
+    Alert.alert(
+      'Delete Task',
+      'Are you sure you want to delete this task?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('userToken');
+              if (!token) return;
+
+              const response = await fetch(`${API_URL}/tasks/${taskId}`, {
+                method: 'DELETE',
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Content-Type': 'application/json',
+                },
+              });
+
+              if (response.ok) {
+                fetchTasks();
+              }
+            } catch (error) {
+              console.error('Error deleting task:', error);
+              Alert.alert('Error', 'Failed to delete task.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getTodayTasks = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return tasks.filter((task) => task.task_date === today);
+  };
+
+  const getUpcomingTasks = () => {
+    const today = new Date().toISOString().split('T')[0];
+    return tasks.filter((task) => task.task_date > today && !task.completed);
+  };
+
+  const getCompletedCount = () => tasks.filter((task) => task.completed).length;
+  const getPendingCount = () => tasks.filter((task) => !task.completed).length;
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const today = new Date();
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return 'Today';
+    } else if (date.toDateString() === tomorrow.toDateString()) {
+      return 'Tomorrow';
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+  };
+
+  const formatTime = (timeString: string) => {
+    if (!timeString) return '';
+    const [hours, minutes] = timeString.split(':');
+    const hour = parseInt(hours);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour % 12 || 12;
+    return `${displayHour}:${minutes} ${ampm}`;
+  };
+
+  const headerTranslateY = slideAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-50, 0],
+  });
+
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centerContent]}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={styles.loadingText}>Loading tasks...</Text>
+      </View>
+    );
+  }
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Task Management</Text>
-        <Text style={styles.subtitle}>Daily tasks and assignments</Text>
-      </View>
-
-      {/* Task Summary */}
-      <View style={styles.summaryRow}>
-        <View style={styles.summaryCard}>
-          <CheckSquare size={24} color="#10B981" />
-          <Text style={styles.summaryValue}>12</Text>
-          <Text style={styles.summaryLabel}>Completed</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Clock size={24} color="#F59E0B" />
-          <Text style={styles.summaryValue}>4</Text>
-          <Text style={styles.summaryLabel}>Pending</Text>
-        </View>
-        <View style={styles.summaryCard}>
-          <Users size={24} color="#3B82F6" />
-          <Text style={styles.summaryValue}>6</Text>
-          <Text style={styles.summaryLabel}>Staff Active</Text>
-        </View>
-      </View>
-
-      {/* Today's Tasks */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Today's Tasks</Text>
-        {todayTasks.map((task) => (
-          <TouchableOpacity 
-            key={task.id} 
-            style={styles.taskItem}
-            onPress={() => toggleTaskComplete(task.id)}
-          >
-            <View style={styles.taskCheckbox}>
-              <View style={[
-                styles.checkbox, 
-                task.completed && styles.checkboxCompleted
-              ]}>
-                {task.completed && (
-                  <CheckSquare size={16} color="#FFFFFF" />
-                )}
-              </View>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* Enhanced Header */}
+        <Animated.View
+          style={[
+            styles.header,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: headerTranslateY }],
+            },
+          ]}
+        >
+          <View style={styles.headerGradient}>
+            <View style={styles.addButtonContainer}>
+              <TouchableOpacity
+                style={styles.addButton}
+                onPress={() => setShowForm(true)}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={['#3B82F6', '#2563EB']}
+                  style={styles.addButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  <Feather name="plus" size={20} color="#FFFFFF" />
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
-            <View style={styles.taskContent}>
-              <View style={styles.taskHeader}>
-                <Text style={[
-                  styles.taskTitle,
-                  task.completed && styles.taskTitleCompleted
-                ]}>
-                  {task.title}
-                </Text>
-                <View style={[
-                  styles.priorityBadge, 
-                  { backgroundColor: getPriorityColor(task.priority) + '20' }
-                ]}>
-                  <Text style={[
-                    styles.priorityText, 
-                    { color: getPriorityColor(task.priority) }
-                  ]}>
-                    {task.priority.toUpperCase()}
-                  </Text>
+            <View style={styles.headerContent}>
+              <Text style={styles.title}>Task Management</Text>
+              <View style={styles.subtitleContainer}>
+                <Text style={styles.subtitle}>Organize your daily tasks</Text>
+                <View style={styles.taskBadge}>
+                  <Feather name="check-circle" size={14} color="#10B981" />
+                  <Text style={styles.taskBadgeText}>Active</Text>
                 </View>
               </View>
-              <Text style={styles.taskLocation}>📍 {task.location}</Text>
-              <View style={styles.taskFooter}>
-                <Text style={styles.taskAssignee}>👤 {task.assignee}</Text>
-                <Text style={styles.taskTime}>⏰ {task.time}</Text>
+            </View>
+            <View style={styles.headerDecoration} />
+          </View>
+        </Animated.View>
+
+        {/* Summary Cards */}
+        <View style={styles.summaryRow}>
+          <Animated.View
+            style={[
+              styles.summaryCard,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: slideAnim }],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['#10B981', '#059669']}
+              style={styles.summaryCardGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Feather name="check-circle" size={24} color="#FFFFFF" />
+              <Text style={styles.summaryValue}>{getCompletedCount()}</Text>
+              <Text style={styles.summaryLabel}>Completed</Text>
+            </LinearGradient>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.summaryCard,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: slideAnim }],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['#F59E0B', '#D97706']}
+              style={styles.summaryCardGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Feather name="clock" size={24} color="#FFFFFF" />
+              <Text style={styles.summaryValue}>{getPendingCount()}</Text>
+              <Text style={styles.summaryLabel}>Pending</Text>
+            </LinearGradient>
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.summaryCard,
+              {
+                opacity: fadeAnim,
+                transform: [{ scale: slideAnim }],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['#8B5CF6', '#6D28D9']}
+              style={styles.summaryCardGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Feather name="list" size={24} color="#FFFFFF" />
+              <Text style={styles.summaryValue}>{tasks.length}</Text>
+              <Text style={styles.summaryLabel}>Total</Text>
+            </LinearGradient>
+          </Animated.View>
+        </View>
+
+        {/* Today's Tasks */}
+        {getTodayTasks().length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Feather name="calendar" size={20} color="#3B82F6" />
+                <Text style={styles.sectionTitle}>Today's Tasks</Text>
+              </View>
+              <Text style={styles.sectionCount}>{getTodayTasks().length}</Text>
+            </View>
+            {getTodayTasks().map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onToggle={toggleTaskComplete}
+                onDelete={deleteTask}
+                formatTime={formatTime}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* Upcoming Tasks */}
+        {getUpcomingTasks().length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Feather name="clock" size={20} color="#F59E0B" />
+                <Text style={styles.sectionTitle}>Upcoming Tasks</Text>
+              </View>
+              <Text style={styles.sectionCount}>{getUpcomingTasks().length}</Text>
+            </View>
+            {getUpcomingTasks().map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onToggle={toggleTaskComplete}
+                onDelete={deleteTask}
+                formatTime={formatTime}
+                formatDate={formatDate}
+              />
+            ))}
+          </View>
+        )}
+
+        {/* All Tasks */}
+        {tasks.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <View style={styles.sectionHeaderLeft}>
+                <Feather name="list" size={20} color="#8B5CF6" />
+                <Text style={styles.sectionTitle}>All Tasks</Text>
               </View>
             </View>
-          </TouchableOpacity>
-        ))}
-      </View>
+            {tasks.map((task) => (
+              <TaskItem
+                key={task.id}
+                task={task}
+                onToggle={toggleTaskComplete}
+                onDelete={deleteTask}
+                formatTime={formatTime}
+                formatDate={formatDate}
+              />
+            ))}
+          </View>
+        )}
 
-      {/* Upcoming Tasks */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Upcoming Tasks</Text>
-        {upcomingTasks.map((task, index) => (
-          <View key={index} style={styles.upcomingTaskItem}>
-            <View style={styles.upcomingTaskContent}>
-              <Text style={styles.upcomingTaskTitle}>{task.title}</Text>
-              <Text style={styles.upcomingTaskLocation}>📍 {task.location}</Text>
-              <View style={styles.upcomingTaskFooter}>
-                <Text style={styles.upcomingTaskAssignee}>👤 {task.assignee}</Text>
-                <Text style={styles.upcomingTaskDate}>📅 {task.date}</Text>
+        {/* Empty State */}
+        {tasks.length === 0 && !loading && (
+          <View style={styles.emptyState}>
+            <Feather name="clipboard" size={64} color="#D1D5DB" />
+            <Text style={styles.emptyStateTitle}>No tasks yet</Text>
+            <Text style={styles.emptyStateText}>
+              Create your first task to get started
+            </Text>
+            <TouchableOpacity
+              style={styles.emptyStateButton}
+              onPress={() => setShowForm(true)}
+            >
+              <LinearGradient
+                colors={['#3B82F6', '#2563EB']}
+                style={styles.emptyStateButtonGradient}
+              >
+                <Feather name="plus" size={20} color="#FFFFFF" />
+                <Text style={styles.emptyStateButtonText}>Add Task</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        <View style={styles.footer} />
+      </ScrollView>
+
+      {/* Add Task Form Modal */}
+      <Modal
+        visible={showForm}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowForm(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Create New Task</Text>
+              <TouchableOpacity
+                onPress={() => setShowForm(false)}
+                style={styles.closeButton}
+              >
+                <Feather name="x" size={24} color="#6B7280" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView 
+              style={styles.formScroll} 
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={styles.formScrollContent}
+            >
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>
+                  Task Name <Text style={styles.required}>*</Text>
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Enter task name"
+                  value={formData.task_name}
+                  onChangeText={(value) => handleInputChange('task_name', value)}
+                  placeholderTextColor="#9CA3AF"
+                />
               </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Description</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="Enter task description (optional)"
+                  value={formData.description}
+                  onChangeText={(value) => handleInputChange('description', value)}
+                  multiline
+                  numberOfLines={4}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+
+              <View style={styles.formRow}>
+                <View style={[styles.formGroup, styles.formGroupHalf]}>
+                  <Text style={styles.label}>
+                    Date <Text style={styles.required}>*</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="YYYY-MM-DD"
+                    value={formData.task_date}
+                    onChangeText={(value) => handleInputChange('task_date', value)}
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+
+                <View style={[styles.formGroup, styles.formGroupHalf]}>
+                  <Text style={styles.label}>
+                    Time <Text style={styles.required}>*</Text>
+                  </Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="HH:MM"
+                    value={formData.task_time}
+                    onChangeText={(value) => handleInputChange('task_time', value)}
+                    placeholderTextColor="#9CA3AF"
+                  />
+                </View>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.label}>Goal</Text>
+                <TextInput
+                  style={[styles.input, styles.textArea]}
+                  placeholder="What do you want to achieve? (optional)"
+                  value={formData.goal}
+                  onChangeText={(value) => handleInputChange('goal', value)}
+                  multiline
+                  numberOfLines={3}
+                  placeholderTextColor="#9CA3AF"
+                />
+              </View>
+            </ScrollView>
+
+            {/* Submit Button - Outside ScrollView for better touch handling */}
+            <View style={styles.submitButtonContainer}>
+              <TouchableOpacity
+                style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+                onPress={() => {
+                  console.log('🔘 Submit button pressed');
+                  handleSubmit();
+                }}
+                disabled={submitting}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={submitting ? ['#9CA3AF', '#6B7280'] : ['#3B82F6', '#2563EB']}
+                  style={styles.submitButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  pointerEvents="none"
+                >
+                  {submitting ? (
+                    <ActivityIndicator color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Feather name="check" size={20} color="#FFFFFF" />
+                      <Text style={styles.submitButtonText}>Create Task</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
             </View>
           </View>
-        ))}
-      </View>
-
-      {/* Quick Actions */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Quick Actions</Text>
-        <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.actionButton}>
-            <CheckSquare size={20} color="#FFFFFF" />
-            <Text style={styles.actionButtonText}>Add Task</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.secondaryButton]}>
-            <Users size={20} color="#3B82F6" />
-            <Text style={[styles.actionButtonText, styles.secondaryButtonText]}>Assign Staff</Text>
-          </TouchableOpacity>
         </View>
-      </View>
-    </ScrollView>
+      </Modal>
+    </View>
   );
 }
+
+// Task Item Component
+interface TaskItemProps {
+  task: Task;
+  onToggle: (id: string, currentStatus: boolean) => void;
+  onDelete: (id: string) => void;
+  formatTime: (time: string) => string;
+  formatDate?: (date: string) => string;
+}
+
+const TaskItem: React.FC<TaskItemProps> = ({
+  task,
+  onToggle,
+  onDelete,
+  formatTime,
+  formatDate,
+}) => {
+  return (
+    <View style={[styles.taskItem, task.completed && styles.taskItemCompleted]}>
+      <TouchableOpacity
+        style={styles.taskCheckbox}
+        onPress={() => onToggle(task.id, task.completed)}
+        activeOpacity={0.7}
+      >
+        <View
+          style={[
+            styles.checkbox,
+            task.completed && styles.checkboxCompleted,
+          ]}
+        >
+          {task.completed && (
+            <Feather name="check" size={16} color="#FFFFFF" />
+          )}
+        </View>
+      </TouchableOpacity>
+
+      <View style={styles.taskContent}>
+        <View style={styles.taskHeader}>
+          <Text
+            style={[
+              styles.taskTitle,
+              task.completed && styles.taskTitleCompleted,
+            ]}
+            numberOfLines={2}
+          >
+            {task.task_name}
+          </Text>
+          <TouchableOpacity
+            onPress={() => onDelete(task.id)}
+            style={styles.deleteButton}
+          >
+            <Feather name="trash-2" size={16} color="#EF4444" />
+          </TouchableOpacity>
+        </View>
+
+        {task.description && (
+          <Text style={styles.taskDescription} numberOfLines={2}>
+            {task.description}
+          </Text>
+        )}
+
+        {task.goal && (
+          <View style={styles.goalContainer}>
+            <Feather name="target" size={14} color="#8B5CF6" />
+            <Text style={styles.goalText}>{task.goal}</Text>
+          </View>
+        )}
+
+        <View style={styles.taskFooter}>
+          <View style={styles.taskInfo}>
+            <Feather name="calendar" size={14} color="#6B7280" />
+            <Text style={styles.taskInfoText}>
+              {formatDate ? formatDate(task.task_date) : task.task_date}
+            </Text>
+          </View>
+          <View style={styles.taskInfo}>
+            <Feather name="clock" size={14} color="#6B7280" />
+            <Text style={styles.taskInfoText}>{formatTime(task.task_time)}</Text>
+          </View>
+        </View>
+      </View>
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F9FAFB',
   },
+  centerContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#6B7280',
+  },
+  scrollView: {
+    flex: 1,
+  },
   header: {
-    padding: 20,
     paddingTop: 60,
+    paddingBottom: 28,
+    borderBottomLeftRadius: 32,
+    borderBottomRightRadius: 32,
     backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+    overflow: 'hidden',
+    marginBottom: 24,
+  },
+  headerGradient: {
+    flex: 1,
+    position: 'relative',
+    backgroundColor: '#FFFFFF',
+  },
+  addButtonContainer: {
+    position: 'absolute',
+    top: 12,
+    right: 16,
+    zIndex: 10,
+  },
+  headerContent: {
+    paddingHorizontal: 24,
+    paddingRight: 140,
+    zIndex: 1,
+    marginTop: 8,
   },
   title: {
-    fontSize: 28,
-    fontFamily: 'Inter-Bold',
+    fontSize: 30,
+    fontWeight: '800',
     color: '#111827',
-    marginBottom: 4,
+    letterSpacing: -0.5,
+    marginBottom: 8,
+  },
+  subtitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flexWrap: 'wrap',
   },
   subtitle: {
     fontSize: 16,
-    fontFamily: 'Inter-Regular',
     color: '#6B7280',
+    fontWeight: '500',
+  },
+  taskBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#ECFDF5',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  taskBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#10B981',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  headerDecoration: {
+    position: 'absolute',
+    top: -50,
+    right: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: '#F0FDF4',
+    opacity: 0.4,
+  },
+  addButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  addButtonGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   summaryRow: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingTop: 20,
     gap: 12,
+    marginBottom: 20,
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderRadius: 20,
+    overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  summaryCardGradient: {
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   summaryValue: {
-    fontSize: 24,
-    fontFamily: 'Inter-Bold',
-    color: '#111827',
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#FFFFFF',
     marginTop: 8,
   },
   summaryLabel: {
     fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: '#FFFFFF',
     marginTop: 4,
+    opacity: 0.9,
   },
   section: {
     backgroundColor: '#FFFFFF',
-    margin: 20,
-    borderRadius: 12,
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 24,
     padding: 20,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 4,
+    shadowRadius: 8,
     elevation: 3,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontFamily: 'Inter-SemiBold',
+    fontSize: 20,
+    fontWeight: '800',
     color: '#111827',
-    marginBottom: 16,
+    letterSpacing: -0.5,
+  },
+  sectionCount: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6B7280',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   taskItem: {
     flexDirection: 'row',
@@ -267,18 +1050,22 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F3F4F6',
     alignItems: 'flex-start',
   },
+  taskItemCompleted: {
+    opacity: 0.7,
+  },
   taskCheckbox: {
     marginRight: 12,
     marginTop: 2,
   },
   checkbox: {
-    width: 20,
-    height: 20,
-    borderRadius: 4,
+    width: 24,
+    height: 24,
+    borderRadius: 6,
     borderWidth: 2,
     borderColor: '#D1D5DB',
     alignItems: 'center',
     justifyContent: 'center',
+    backgroundColor: '#FFFFFF',
   },
   checkboxCompleted: {
     backgroundColor: '#10B981',
@@ -290,110 +1077,207 @@ const styles = StyleSheet.create({
   taskHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
+    alignItems: 'flex-start',
+    marginBottom: 6,
   },
   taskTitle: {
     fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontWeight: '700',
     color: '#111827',
     flex: 1,
     marginRight: 8,
+    lineHeight: 22,
   },
   taskTitleCompleted: {
     textDecorationLine: 'line-through',
     color: '#9CA3AF',
   },
-  priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
+  deleteButton: {
+    padding: 4,
   },
-  priorityText: {
-    fontSize: 10,
-    fontFamily: 'Inter-Bold',
-  },
-  taskLocation: {
+  taskDescription: {
     fontSize: 14,
-    fontFamily: 'Inter-Regular',
     color: '#6B7280',
     marginBottom: 8,
+    lineHeight: 20,
+  },
+  goalContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+  goalText: {
+    fontSize: 12,
+    color: '#8B5CF6',
+    fontWeight: '600',
   },
   taskFooter: {
     flexDirection: 'row',
+    gap: 16,
+    marginTop: 4,
+  },
+  taskInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  taskInfoText: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    paddingHorizontal: 40,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: '#6B7280',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  emptyStateButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  emptyStateButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+  },
+  emptyStateButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  footer: {
+    height: 40,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: '#FFFFFF',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    maxHeight: '90%',
+    flex: 1,
+    flexDirection: 'column',
+  },
+  modalHeader: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
-  },
-  taskAssignee: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#9CA3AF',
-  },
-  taskTime: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#9CA3AF',
-  },
-  upcomingTaskItem: {
-    paddingVertical: 12,
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#E5E7EB',
   },
-  upcomingTaskContent: {
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
+  },
+  closeButton: {
+    padding: 4,
+  },
+  formScroll: {
     flex: 1,
   },
-  upcomingTaskTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+  formScrollContent: {
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 20,
+  },
+  submitButtonContainer: {
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    paddingTop: 8,
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  formGroup: {
+    marginBottom: 20,
+  },
+  formRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  formGroupHalf: {
+    flex: 1,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '700',
     color: '#111827',
     marginBottom: 8,
   },
-  upcomingTaskLocation: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
-    color: '#6B7280',
-    marginBottom: 8,
+  required: {
+    color: '#EF4444',
   },
-  upcomingTaskFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  upcomingTaskAssignee: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#9CA3AF',
-  },
-  upcomingTaskDate: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: '#9CA3AF',
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 16,
-  },
-  actionButton: {
-    flex: 1,
-    backgroundColor: '#3B82F6',
-    paddingVertical: 12,
+  input: {
+    backgroundColor: '#F9FAFB',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: '#111827',
+  },
+  textArea: {
+    minHeight: 100,
+    textAlignVertical: 'top',
+  },
+  submitButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
+  },
+  submitButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    paddingVertical: 16,
   },
-  secondaryButton: {
-    backgroundColor: '#F3F4F6',
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-  },
-  actionButtonText: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
+  submitButtonText: {
+    fontSize: 16,
+    fontWeight: '700',
     color: '#FFFFFF',
-  },
-  secondaryButtonText: {
-    color: '#3B82F6',
   },
 });
