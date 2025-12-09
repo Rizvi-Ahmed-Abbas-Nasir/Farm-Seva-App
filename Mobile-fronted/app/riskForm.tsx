@@ -13,8 +13,6 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft, Save, AlertTriangle, CheckCircle } from 'lucide-react-native';
-import { Feather } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -109,47 +107,21 @@ export default function RiskForm() {
     return (
         <View style={styles.container}>
             <View style={styles.header}>
-                <LinearGradient
-                    colors={['#FFFFFF', '#F9FAFB']}
-                    style={styles.headerGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                >
-                    <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                        <View style={styles.backButtonContainer}>
-                            <Feather name="arrow-left" size={20} color="#111827" />
-                        </View>
-                    </TouchableOpacity>
-                    <View style={styles.headerContent}>
-                        <View style={styles.headerTitleContainer}>
-                            <View style={styles.headerIconContainer}>
-                                <Feather name="shield" size={24} color="#EF4444" />
-                            </View>
-                            <Text style={styles.headerTitle}>Risk Assessment</Text>
-                        </View>
-                        <Text style={styles.headerSubtitle}>Evaluate your farm's biosecurity</Text>
-                    </View>
-                    <View style={styles.headerDecoration} />
-                </LinearGradient>
+                <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+                    <ChevronLeft size={24} color="#111827" />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Risk Assessment Form</Text>
             </View>
 
             <KeyboardAvoidingView
                 behavior={Platform.OS === "ios" ? "padding" : "height"}
                 style={{ flex: 1 }}
             >
-                <ScrollView 
-                    style={styles.content} 
-                    contentContainerStyle={styles.scrollContent}
-                    showsVerticalScrollIndicator={false}
-                >
+                <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
+
                     {/* Farm Details Section */}
                     <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <View style={styles.sectionIconContainer}>
-                                <Feather name="home" size={20} color="#3B82F6" />
-                            </View>
-                            <Text style={styles.sectionTitle}>Farm Details</Text>
-                        </View>
+                        <Text style={styles.sectionTitle}>Farm Details</Text>
 
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Farm Name</Text>
@@ -158,22 +130,20 @@ export default function RiskForm() {
                                 value={formData.farmName}
                                 onChangeText={(text) => handleChange('farmName', text)}
                                 placeholder="Enter farm name"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
                         <View style={styles.row}>
-                            <View style={[styles.inputGroup, styles.inputGroupHalf]}>
+                            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
                                 <Text style={styles.label}>Species</Text>
                                 <TextInput
                                     style={styles.input}
                                     value={formData.species}
                                     onChangeText={(text) => handleChange('species', text)}
                                     placeholder="e.g. Poultry, Cattle"
-                                    placeholderTextColor="#9CA3AF"
                                 />
                             </View>
-                            <View style={[styles.inputGroup, styles.inputGroupHalf]}>
+                            <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                                 <Text style={styles.label}>Herd/Flock Size</Text>
                                 <TextInput
                                     style={styles.input}
@@ -181,30 +151,27 @@ export default function RiskForm() {
                                     onChangeText={(text) => handleChange('herdSize', text)}
                                     placeholder="Number of animals"
                                     keyboardType="numeric"
-                                    placeholderTextColor="#9CA3AF"
                                 />
                             </View>
                         </View>
 
                         <View style={styles.row}>
-                            <View style={[styles.inputGroup, styles.inputGroupHalf]}>
+                            <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
                                 <Text style={styles.label}>State</Text>
                                 <TextInput
                                     style={styles.input}
                                     value={formData.state}
                                     onChangeText={(text) => handleChange('state', text)}
                                     placeholder="State"
-                                    placeholderTextColor="#9CA3AF"
                                 />
                             </View>
-                            <View style={[styles.inputGroup, styles.inputGroupHalf]}>
+                            <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
                                 <Text style={styles.label}>District</Text>
                                 <TextInput
                                     style={styles.input}
                                     value={formData.district}
                                     onChangeText={(text) => handleChange('district', text)}
                                     placeholder="District"
-                                    placeholderTextColor="#9CA3AF"
                                 />
                             </View>
                         </View>
@@ -212,12 +179,7 @@ export default function RiskForm() {
 
                     {/* Biosecurity Infrastructure */}
                     <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <View style={[styles.sectionIconContainer, { backgroundColor: '#FEF3C7' }]}>
-                                <Feather name="shield" size={20} color="#D97706" />
-                            </View>
-                            <Text style={styles.sectionTitle}>Biosecurity Infrastructure</Text>
-                        </View>
+                        <Text style={styles.sectionTitle}>Biosecurity Infrastructure</Text>
 
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Housing Type</Text>
@@ -226,7 +188,6 @@ export default function RiskForm() {
                                 value={formData.housingType}
                                 onChangeText={(text) => handleChange('housingType', text)}
                                 placeholder="e.g. Open, Closed, Cage"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -237,7 +198,6 @@ export default function RiskForm() {
                                 value={formData.visitorControl}
                                 onChangeText={(text) => handleChange('visitorControl', text)}
                                 placeholder="Describe visitor restrictions"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -248,7 +208,6 @@ export default function RiskForm() {
                                 value={formData.deadAnimalDisposal}
                                 onChangeText={(text) => handleChange('deadAnimalDisposal', text)}
                                 placeholder="Method of disposal"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -259,7 +218,6 @@ export default function RiskForm() {
                                 value={formData.perimeterFencing}
                                 onChangeText={(text) => handleChange('perimeterFencing', text)}
                                 placeholder="Yes/No, Condition"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -270,7 +228,6 @@ export default function RiskForm() {
                                 value={formData.vehicleHygiene}
                                 onChangeText={(text) => handleChange('vehicleHygiene', text)}
                                 placeholder="Cleaning protocols"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -281,19 +238,13 @@ export default function RiskForm() {
                                 value={formData.wildBirdContact}
                                 onChangeText={(text) => handleChange('wildBirdContact', text)}
                                 placeholder="Risk level or prevention"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
                     </View>
 
                     {/* Operations & Environment */}
                     <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <View style={[styles.sectionIconContainer, { backgroundColor: '#DCFCE7' }]}>
-                                <Feather name="wind" size={20} color="#10B981" />
-                            </View>
-                            <Text style={styles.sectionTitle}>Operations & Environment</Text>
-                        </View>
+                        <Text style={styles.sectionTitle}>Operations & Environment</Text>
 
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Ventilation Quality</Text>
@@ -302,7 +253,6 @@ export default function RiskForm() {
                                 value={formData.ventilationQuality}
                                 onChangeText={(text) => handleChange('ventilationQuality', text)}
                                 placeholder="Good, Poor, etc."
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -313,7 +263,6 @@ export default function RiskForm() {
                                 value={formData.temperatureControl}
                                 onChangeText={(text) => handleChange('temperatureControl', text)}
                                 placeholder="Methods used"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -324,7 +273,6 @@ export default function RiskForm() {
                                 value={formData.feedStorage}
                                 onChangeText={(text) => handleChange('feedStorage', text)}
                                 placeholder="Storage conditions"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -335,7 +283,6 @@ export default function RiskForm() {
                                 value={formData.waterSource}
                                 onChangeText={(text) => handleChange('waterSource', text)}
                                 placeholder="Source and quality"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -346,7 +293,6 @@ export default function RiskForm() {
                                 value={formData.cleaningFrequency}
                                 onChangeText={(text) => handleChange('cleaningFrequency', text)}
                                 placeholder="Daily, Weekly, etc."
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -357,19 +303,13 @@ export default function RiskForm() {
                                 value={formData.recordKeeping}
                                 onChangeText={(text) => handleChange('recordKeeping', text)}
                                 placeholder="Digital, Manual, None"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
                     </View>
 
                     {/* Current Health Status */}
                     <View style={styles.section}>
-                        <View style={styles.sectionHeader}>
-                            <View style={[styles.sectionIconContainer, { backgroundColor: '#FEE2E2' }]}>
-                                <Feather name="heart" size={20} color="#EF4444" />
-                            </View>
-                            <Text style={styles.sectionTitle}>Current Health Status</Text>
-                        </View>
+                        <Text style={styles.sectionTitle}>Current Health Status</Text>
 
                         <View style={styles.inputGroup}>
                             <Text style={styles.label}>Current Health Status</Text>
@@ -378,7 +318,6 @@ export default function RiskForm() {
                                 value={formData.currentHealthStatus}
                                 onChangeText={(text) => handleChange('currentHealthStatus', text)}
                                 placeholder="General overview"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -389,7 +328,6 @@ export default function RiskForm() {
                                 value={formData.vaccinationSchedule}
                                 onChangeText={(text) => handleChange('vaccinationSchedule', text)}
                                 placeholder="Up to date?"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -401,7 +339,6 @@ export default function RiskForm() {
                                 onChangeText={(text) => handleChange('suddenDeaths', text)}
                                 placeholder="Number of deaths"
                                 keyboardType="numeric"
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
 
@@ -414,7 +351,6 @@ export default function RiskForm() {
                                 placeholder="Any specific symptoms or notes"
                                 multiline
                                 numberOfLines={4}
-                                placeholderTextColor="#9CA3AF"
                             />
                         </View>
                     </View>
@@ -424,31 +360,21 @@ export default function RiskForm() {
                             style={styles.submitButton}
                             onPress={handleSubmit}
                             disabled={loading}
-                            activeOpacity={0.8}
                         >
-                            <LinearGradient
-                                colors={loading ? ['#9CA3AF', '#6B7280'] : ['#EF4444', '#DC2626']}
-                                style={styles.submitButtonGradient}
-                                start={{ x: 0, y: 0 }}
-                                end={{ x: 1, y: 1 }}
-                            >
-                                {loading ? (
-                                    <ActivityIndicator color="#FFFFFF" />
-                                ) : (
-                                    <>
-                                        <Feather name="shield" size={20} color="#FFFFFF" />
-                                        <Text style={styles.submitButtonText}>Calculate Risk Score</Text>
-                                    </>
-                                )}
-                            </LinearGradient>
+                            {loading ? (
+                                <ActivityIndicator color="#FFFFFF" />
+                            ) : (
+                                <>
+                                    <CheckCircle size={20} color="#FFFFFF" />
+                                    <Text style={styles.submitButtonText}>Calculate Risk Score</Text>
+                                </>
+                            )}
                         </TouchableOpacity>
 
                         <TouchableOpacity
                             style={styles.cancelButton}
                             onPress={() => router.back()}
-                            activeOpacity={0.7}
                         >
-                            <Feather name="arrow-left" size={18} color="#6B7280" />
                             <Text style={styles.cancelButtonText}>Back to Dashboard</Text>
                         </TouchableOpacity>
                     </View>
@@ -465,193 +391,107 @@ const styles = StyleSheet.create({
         backgroundColor: '#F9FAFB',
     },
     header: {
-        paddingTop: 60,
-        paddingBottom: 24,
-        borderBottomLeftRadius: 32,
-        borderBottomRightRadius: 32,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 3,
-        overflow: 'hidden',
-        marginBottom: 20,
-    },
-    headerGradient: {
-        flex: 1,
-        position: 'relative',
-        paddingHorizontal: 20,
-    },
-    backButton: {
-        position: 'absolute',
-        top: 16,
-        left: 20,
-        zIndex: 10,
-    },
-    backButtonContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F3F4F6',
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
-    headerContent: {
-        marginTop: 8,
-        paddingRight: 60,
-    },
-    headerTitleContainer: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        marginBottom: 6,
+        paddingTop: 60,
+        paddingHorizontal: 20,
+        paddingBottom: 20,
+        backgroundColor: '#FFFFFF',
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E7EB',
     },
-    headerIconContainer: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: '#FEE2E2',
-        alignItems: 'center',
-        justifyContent: 'center',
+    backButton: {
+        padding: 8,
+        marginRight: 12,
     },
     headerTitle: {
-        fontSize: 28,
-        fontWeight: '800',
+        fontSize: 20,
+        fontWeight: 'bold',
         color: '#111827',
-        letterSpacing: -0.5,
-    },
-    headerSubtitle: {
-        fontSize: 14,
-        color: '#6B7280',
-        fontWeight: '500',
-        marginLeft: 60,
-    },
-    headerDecoration: {
-        position: 'absolute',
-        top: -50,
-        right: -50,
-        width: 200,
-        height: 200,
-        borderRadius: 100,
-        backgroundColor: '#FEE2E2',
-        opacity: 0.4,
     },
     content: {
         flex: 1,
     },
     scrollContent: {
-        paddingHorizontal: 20,
+        padding: 20,
         paddingBottom: 40,
     },
     section: {
         backgroundColor: '#FFFFFF',
-        borderRadius: 24,
-        padding: 24,
+        borderRadius: 16,
+        padding: 20,
         marginBottom: 20,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
-        shadowRadius: 8,
-        elevation: 3,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
-        width: '100%',
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginBottom: 20,
-    },
-    sectionIconContainer: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#DBEAFE',
-        alignItems: 'center',
-        justifyContent: 'center',
+        shadowRadius: 4,
+        elevation: 2,
     },
     sectionTitle: {
-        fontSize: 20,
-        fontWeight: '800',
+        fontSize: 18,
+        fontWeight: '600',
         color: '#111827',
-        letterSpacing: -0.5,
+        marginBottom: 16,
     },
     inputGroup: {
-        marginBottom: 20,
-        width: '100%',
-    },
-    inputGroupHalf: {
-        flex: 1,
+        marginBottom: 16,
     },
     row: {
         flexDirection: 'row',
-        gap: 12,
-        width: '100%',
     },
     label: {
         fontSize: 14,
-        fontWeight: '700',
-        color: '#111827',
+        fontWeight: '500',
+        color: '#374151',
         marginBottom: 8,
     },
     input: {
         backgroundColor: '#F9FAFB',
         borderWidth: 1,
-        borderColor: '#E5E7EB',
+        borderColor: '#D1D5DB',
         borderRadius: 12,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
+        padding: 12,
         fontSize: 16,
         color: '#111827',
-        width: '100%',
     },
     textArea: {
-        minHeight: 100,
+        height: 100,
         textAlignVertical: 'top',
     },
     footer: {
         gap: 12,
         marginTop: 20,
-        paddingHorizontal: 0,
-        width: '100%',
     },
     submitButton: {
-        borderRadius: 16,
-        overflow: 'hidden',
-        shadowColor: '#EF4444',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-        width: '100%',
-    },
-    submitButtonGradient: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        gap: 10,
-    },
-    submitButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    cancelButton: {
-        backgroundColor: '#FFFFFF',
+        backgroundColor: '#2563EB',
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         padding: 16,
         borderRadius: 16,
-        borderWidth: 1,
-        borderColor: '#E5E7EB',
         gap: 8,
-        width: '100%',
+        shadowColor: '#2563EB',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    submitButtonText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    cancelButton: {
+        backgroundColor: '#FFFFFF',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: '#D1D5DB',
     },
     cancelButtonText: {
-        color: '#6B7280',
+        color: '#374151',
         fontSize: 16,
         fontWeight: '600',
     },

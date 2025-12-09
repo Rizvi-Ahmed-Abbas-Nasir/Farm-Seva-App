@@ -26,6 +26,8 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AnnoyedIcon } from "lucide-react-native";
 import { LinearGradient } from 'expo-linear-gradient';
+import { offlineService } from '@/app/lib/offlineService';
+import OfflineIndicator from '@/components/OfflineIndicator';
 
 const { width, height } = Dimensions.get("window");
 
@@ -65,9 +67,17 @@ export default function VetList({ city = "mumbai" }: VetListProps) {
     openNow: false,
     highRating: false,
   });
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
     loadSavedData();
+    
+    // Subscribe to network status
+    const unsubscribe = offlineService.subscribe((online) => {
+      setIsOnline(online);
+    });
+    
+    return () => unsubscribe();
   }, []);
 
   const loadSavedData = async () => {
@@ -104,6 +114,21 @@ export default function VetList({ city = "mumbai" }: VetListProps) {
     setError(null);
     setHasSearched(true);
 
+    // Check if offline - use cached data
+    if (!offlineService.isConnected()) {
+      console.log('📴 Offline - loading cached vet data');
+      const cached = await offlineService.getCachedVetData(city, currentAnimalType);
+      if (cached && cached.length > 0) {
+        setData(cached as VetContact[]);
+        setLoading(false);
+        return;
+      } else {
+        setError("No cached data available. Please connect to the internet to fetch vet data.");
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const payload = {
         city: city,
@@ -122,6 +147,14 @@ export default function VetList({ city = "mumbai" }: VetListProps) {
       );
 
       if (!response.ok) {
+        // Try cached data on error
+        const cached = await offlineService.getCachedVetData(city, currentAnimalType);
+        if (cached && cached.length > 0) {
+          console.log('📦 Using cached vet data due to error');
+          setData(cached as VetContact[]);
+          setLoading(false);
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -145,8 +178,21 @@ export default function VetList({ city = "mumbai" }: VetListProps) {
       }
 
       setData(parsedData as VetContact[]);
+      
+      // Cache the data for offline use
+      await offlineService.cacheVetData(city, currentAnimalType, parsedData);
     } catch (err: any) {
       console.error("Fetch error:", err);
+      
+      // Try cached data on error
+      const cached = await offlineService.getCachedVetData(city, currentAnimalType);
+      if (cached && cached.length > 0) {
+        console.log('📦 Using cached vet data due to error');
+        setData(cached as VetContact[]);
+        setLoading(false);
+        return;
+      }
+      
       setError(
         err.message.includes("JSON")
           ? "Failed to process veterinary data. Please try again."
@@ -847,6 +893,7 @@ export default function VetList({ city = "mumbai" }: VetListProps) {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#F3F4F6" />
+      <OfflineIndicator />
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}

@@ -17,6 +17,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { router } from 'expo-router';
+import { offlineService } from '@/app/lib/offlineService';
+import OfflineIndicator from '@/components/OfflineIndicator';
+import { notificationService } from '@/app/lib/notificationService';
 
 // API Configuration
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
@@ -47,6 +50,7 @@ export default function TasksScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
   const [formData, setFormData] = useState<TaskFormData>({
     task_name: '',
     description: '',
@@ -61,6 +65,17 @@ export default function TasksScreen() {
   useEffect(() => {
     fetchTasks();
     animateHeader();
+    
+    // Subscribe to network status
+    const unsubscribe = offlineService.subscribe((online) => {
+      setIsOnline(online);
+      if (online) {
+        // Auto-refresh when back online
+        fetchTasks();
+      }
+    });
+    
+    return () => unsubscribe();
   }, []);
 
   const animateHeader = () => {
@@ -100,6 +115,18 @@ export default function TasksScreen() {
         return;
       }
 
+      // Check if offline - use cached data
+      if (!offlineService.isConnected()) {
+        console.log('📴 Offline - loading cached tasks');
+        const cachedTasks = await offlineService.getCachedTasks();
+        if (cachedTasks && cachedTasks.length > 0) {
+          setTasks(cachedTasks);
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+      }
+
       console.log('📡 Fetching tasks from:', `${API_URL}/tasks`);
       const response = await fetch(`${API_URL}/tasks`, {
         method: 'GET',
@@ -136,6 +163,16 @@ export default function TasksScreen() {
           return;
         }
         
+        // If network error, try cached data
+        const cachedTasks = await offlineService.getCachedTasks();
+        if (cachedTasks && cachedTasks.length > 0) {
+          console.log('📦 Using cached tasks due to network error');
+          setTasks(cachedTasks);
+          setLoading(false);
+          setRefreshing(false);
+          return;
+        }
+        
         throw new Error(errorData.error || `Failed to fetch tasks: ${response.status}`);
       }
 
@@ -144,16 +181,31 @@ export default function TasksScreen() {
       
       if (result.success && Array.isArray(result.data)) {
         setTasks(result.data);
+        // Cache tasks for offline use
+        await offlineService.cacheTasks(result.data);
       } else {
         setTasks([]);
       }
     } catch (error: any) {
       console.error('❌ Error fetching tasks:', error);
-      Alert.alert(
-        'Error',
-        error.message || 'Failed to load tasks. Please try again.',
-        [{ text: 'OK' }]
-      );
+      
+      // Try to load cached data on error
+      const cachedTasks = await offlineService.getCachedTasks();
+      if (cachedTasks && cachedTasks.length > 0) {
+        console.log('📦 Using cached tasks due to error');
+        setTasks(cachedTasks);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+      
+      if (offlineService.isConnected()) {
+        Alert.alert(
+          'Error',
+          error.message || 'Failed to load tasks. Please try again.',
+          [{ text: 'OK' }]
+        );
+      }
       setTasks([]);
     } finally {
       setLoading(false);
@@ -294,6 +346,49 @@ export default function TasksScreen() {
       }
     } catch (error: any) {
       console.error('❌ Error creating task:', error);
+      
+      // If offline, queue the action
+      if (!offlineService.isConnected()) {
+        console.log('📴 Offline - queueing task creation');
+        await offlineService.queueAction({
+          type: 'task',
+          action: 'create',
+          endpoint: '/tasks',
+          method: 'POST',
+          data: requestBody,
+        });
+        
+        // Add to local state immediately for offline preview
+        const tempTask: Task = {
+          id: `temp_${Date.now()}`,
+          task_name: requestBody.task_name,
+          description: requestBody.description || '',
+          task_date: requestBody.task_date,
+          task_time: requestBody.task_time,
+          goal: requestBody.goal || '',
+          completed: false,
+          created_at: new Date().toISOString(),
+        };
+        setTasks(prev => [...prev, tempTask]);
+        await offlineService.cacheTasks([...tasks, tempTask]);
+        
+        Alert.alert(
+          'Task Queued',
+          'Task will be synced when you\'re back online.',
+          [{ text: 'OK' }]
+        );
+        setFormData({
+          task_name: '',
+          description: '',
+          task_date: '',
+          task_time: '',
+          goal: '',
+        });
+        setShowForm(false);
+        setSubmitting(false);
+        return;
+      }
+      
       console.error('❌ Error stack:', error.stack);
       Alert.alert(
         'Error',
@@ -312,6 +407,24 @@ export default function TasksScreen() {
         return;
       }
 
+      // Update UI immediately
+      setTasks(prev => prev.map(task => 
+        task.id === taskId ? { ...task, completed: !currentStatus } : task
+      ));
+
+      // If offline, queue the action
+      if (!offlineService.isConnected()) {
+        await offlineService.queueAction({
+          type: 'task',
+          action: 'update',
+          endpoint: `/tasks/${taskId}/toggle`,
+          method: 'PATCH',
+          data: { completed: !currentStatus },
+        });
+        await offlineService.cacheTasks(tasks.map(t => t.id === taskId ? { ...t, completed: !currentStatus } : t));
+        return;
+      }
+
       const response = await fetch(`${API_URL}/tasks/${taskId}/toggle`, {
         method: 'PATCH',
         headers: {
@@ -322,6 +435,11 @@ export default function TasksScreen() {
       });
 
       if (!response.ok) {
+        // Revert UI change on error
+        setTasks(prev => prev.map(task => 
+          task.id === taskId ? { ...task, completed: currentStatus } : task
+        ));
+        
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
         
         if (response.status === 401) {
@@ -344,10 +462,16 @@ export default function TasksScreen() {
 
       const result = await response.json();
       if (result.success) {
-        fetchTasks();
+        await offlineService.cacheTasks(tasks.map(t => t.id === taskId ? { ...t, completed: !currentStatus } : t));
       }
     } catch (error: any) {
       console.error('Error updating task:', error);
+      
+      // If offline, action is already queued, so just show message
+      if (!offlineService.isConnected()) {
+        return;
+      }
+      
       Alert.alert('Error', error.message || 'Failed to update task. Please try again.');
     }
   };
@@ -366,6 +490,24 @@ export default function TasksScreen() {
               const token = await AsyncStorage.getItem('userToken');
               if (!token) return;
 
+              // Remove from UI immediately
+              const taskToDelete = tasks.find(t => t.id === taskId);
+              setTasks(prev => prev.filter(t => t.id !== taskId));
+              const updatedTasks = tasks.filter(t => t.id !== taskId);
+              await offlineService.cacheTasks(updatedTasks);
+
+              // If offline, queue the action
+              if (!offlineService.isConnected()) {
+                await offlineService.queueAction({
+                  type: 'task',
+                  action: 'delete',
+                  endpoint: `/tasks/${taskId}`,
+                  method: 'DELETE',
+                  data: null,
+                });
+                return;
+              }
+
               const response = await fetch(`${API_URL}/tasks/${taskId}`, {
                 method: 'DELETE',
                 headers: {
@@ -374,11 +516,22 @@ export default function TasksScreen() {
                 },
               });
 
-              if (response.ok) {
-                fetchTasks();
+              if (!response.ok) {
+                // Revert UI change on error
+                if (taskToDelete) {
+                  setTasks(prev => [...prev, taskToDelete]);
+                  await offlineService.cacheTasks([...updatedTasks, taskToDelete]);
+                }
+                throw new Error('Failed to delete task');
               }
             } catch (error) {
               console.error('Error deleting task:', error);
+              
+              // If offline, action is already queued
+              if (!offlineService.isConnected()) {
+                return;
+              }
+              
               Alert.alert('Error', 'Failed to delete task.');
             }
           },
@@ -440,6 +593,7 @@ export default function TasksScreen() {
 
   return (
     <View style={styles.container}>
+      <OfflineIndicator />
       <ScrollView
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
@@ -666,12 +820,7 @@ export default function TasksScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView 
-              style={styles.formScroll} 
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.formScrollContent}
-            >
+            <ScrollView style={styles.formScroll} showsVerticalScrollIndicator={false}>
               <View style={styles.formGroup}>
                 <Text style={styles.label}>
                   Task Name <Text style={styles.required}>*</Text>
@@ -738,12 +887,9 @@ export default function TasksScreen() {
                   placeholderTextColor="#9CA3AF"
                 />
               </View>
-            </ScrollView>
 
-            {/* Submit Button - Outside ScrollView for better touch handling */}
-            <View style={styles.submitButtonContainer}>
               <TouchableOpacity
-                style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
+                style={styles.submitButton}
                 onPress={() => {
                   console.log('🔘 Submit button pressed');
                   handleSubmit();
@@ -752,7 +898,7 @@ export default function TasksScreen() {
                 activeOpacity={0.8}
               >
                 <LinearGradient
-                  colors={submitting ? ['#9CA3AF', '#6B7280'] : ['#3B82F6', '#2563EB']}
+                  colors={['#3B82F6', '#2563EB']}
                   style={styles.submitButtonGradient}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
@@ -768,7 +914,7 @@ export default function TasksScreen() {
                   )}
                 </LinearGradient>
               </TouchableOpacity>
-            </View>
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -1186,8 +1332,8 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 32,
     borderTopRightRadius: 32,
     maxHeight: '90%',
-    flex: 1,
-    flexDirection: 'column',
+    paddingTop: 24,
+    paddingBottom: 40,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -1208,20 +1354,8 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   formScroll: {
-    flex: 1,
-  },
-  formScrollContent: {
     paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 20,
-  },
-  submitButtonContainer: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 8,
-    backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
   },
   formGroup: {
     marginBottom: 20,
@@ -1259,14 +1393,13 @@ const styles = StyleSheet.create({
   submitButton: {
     borderRadius: 16,
     overflow: 'hidden',
+    marginTop: 8,
+    marginBottom: 20,
     shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 5,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
   },
   submitButtonGradient: {
     flexDirection: 'row',

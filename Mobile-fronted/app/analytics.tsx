@@ -8,6 +8,7 @@ import {
     Dimensions,
     SafeAreaView,
     StatusBar,
+    Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
@@ -19,12 +20,29 @@ const CHART_WIDTH = width - 40;
 
 type AnimalType = 'pig' | 'poultry';
 
+// Web-compatible chart wrapper to handle web-specific issues
+const ChartContainer: React.FC<{children: React.ReactNode}> = ({ children }) => {
+    if (Platform.OS === 'web') {
+        return (
+            <View 
+                style={{ 
+                    overflow: 'hidden',
+                    borderRadius: 16,
+                    transformOrigin: 'center center' // Web-compatible CSS property
+                }}
+            >
+                {children}
+            </View>
+        );
+    }
+    return <>{children}</>;
+};
+
 export default function AnalyticsScreen() {
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<AnimalType>('pig');
 
     const getThemeColor = () => activeTab === 'pig' ? '#3B82F6' : '#F59E0B';
-    const getLightColor = () => activeTab === 'pig' ? '#EFF6FF' : '#FFFBEB';
 
     // Mock Data Generators based on Animal Type
     const getHealthData = () => ({
@@ -48,7 +66,7 @@ export default function AnalyticsScreen() {
             ? [0.8, 0.6, 0.4]
             : [0.9, 0.75, 0.5];
         return {
-            labels: ["FMD", "CSF", "Swine Flu"], // Labels for Pig, need dynamic for Poultry really but simplifing for demo
+            labels: vaccinationLabels,
             data: data
         };
     };
@@ -89,7 +107,30 @@ export default function AnalyticsScreen() {
         barPercentage: 0.5,
         useShadowColorFromDataset: false,
         labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+        // Web-specific styling
+        ...(Platform.OS === 'web' && {
+            propsForBackgroundLines: {
+                strokeWidth: 0
+            },
+            propsForLabels: {
+                fontSize: 10
+            }
+        })
     };
+
+    // Web-compatible touchable props
+    const touchableProps = Platform.OS === 'web' ? {
+        // Web-compatible mouse events instead of responder events
+        onMouseDown: () => {},
+        onMouseUp: () => {},
+        onMouseMove: () => {},
+    } : {
+        // Native props
+        activeOpacity: 0.7
+    };
+
+    // Web-specific cursor style
+    const webCursorStyle = Platform.OS === 'web' ? { cursor: 'pointer' as const } : {};
 
     return (
         <SafeAreaView style={styles.container}>
@@ -99,7 +140,8 @@ export default function AnalyticsScreen() {
             <View style={styles.header}>
                 <TouchableOpacity
                     onPress={() => router.back()}
-                    style={styles.backButton}
+                    style={[styles.backButton, webCursorStyle]}
+                    {...touchableProps}
                 >
                     <Feather name="arrow-left" size={24} color="#1F2937" />
                 </TouchableOpacity>
@@ -110,8 +152,9 @@ export default function AnalyticsScreen() {
             {/* Tabs */}
             <View style={styles.tabContainer}>
                 <TouchableOpacity
-                    style={[styles.tab, activeTab === 'pig' && styles.activeTabPig]}
+                    style={[styles.tab, activeTab === 'pig' && styles.activeTabPig, webCursorStyle]}
                     onPress={() => setActiveTab('pig')}
+                    {...touchableProps}
                 >
                     <MaterialCommunityIcons
                         name="pig"
@@ -124,8 +167,9 @@ export default function AnalyticsScreen() {
                 </TouchableOpacity>
 
                 <TouchableOpacity
-                    style={[styles.tab, activeTab === 'poultry' && styles.activeTabPoultry]}
+                    style={[styles.tab, activeTab === 'poultry' && styles.activeTabPoultry, webCursorStyle]}
                     onPress={() => setActiveTab('poultry')}
+                    {...touchableProps}
                 >
                     <MaterialCommunityIcons
                         name="egg-easter"
@@ -141,59 +185,91 @@ export default function AnalyticsScreen() {
             <ScrollView
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.scrollContent}
+                // Web-compatible scroll view props
+                {...(Platform.OS === 'web' && {
+                    style: { overflowY: 'auto' }
+                })}
             >
                 {/* Total Animals Summary */}
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>Livestock Distribution</Text>
-                    <PieChart
-                        data={animalStats}
-                        width={CHART_WIDTH}
-                        height={200}
-                        chartConfig={chartConfig}
-                        accessor={"population"}
-                        backgroundColor={"transparent"}
-                        paddingLeft={"15"}
-                        center={[10, 0]}
-                        absolute
-                    />
+                    <ChartContainer>
+                        <PieChart
+                            data={animalStats}
+                            width={CHART_WIDTH}
+                            height={200}
+                            chartConfig={chartConfig}
+                            accessor={"population"}
+                            backgroundColor={"transparent"}
+                            paddingLeft={"15"}
+                            center={[10, 0]}
+                            absolute
+                            // Disable touch gestures on web
+                            {...(Platform.OS === 'web' && {
+                                onStartShouldSetResponder: undefined,
+                                onResponderTerminationRequest: undefined,
+                                onResponderGrant: undefined,
+                                onResponderMove: undefined,
+                                onResponderRelease: undefined,
+                            })}
+                        />
+                    </ChartContainer>
                 </View>
 
                 {/* Health Checkups */}
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>Health Checkup Trends</Text>
-                    <LineChart
-                        data={getHealthData()}
-                        width={CHART_WIDTH - 40}
-                        height={220}
-                        chartConfig={{
-                            ...chartConfig,
-                            strokeWidth: 3,
-                        }}
-                        bezier
-                        style={styles.chart}
-                        withDots={true}
-                        withInnerLines={true}
-                    />
+                    <ChartContainer>
+                        <LineChart
+                            data={getHealthData()}
+                            width={CHART_WIDTH - 40}
+                            height={220}
+                            chartConfig={{
+                                ...chartConfig,
+                                strokeWidth: 3,
+                            }}
+                            bezier
+                            style={styles.chart}
+                            withDots={true}
+                            withInnerLines={true}
+                            // Disable touch gestures on web
+                            {...(Platform.OS === 'web' && {
+                                onStartShouldSetResponder: undefined,
+                                onResponderTerminationRequest: undefined,
+                                onResponderGrant: undefined,
+                                onResponderMove: undefined,
+                                onResponderRelease: undefined,
+                            })}
+                        />
+                    </ChartContainer>
                 </View>
 
                 {/* Vaccinations */}
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>Vaccination Coverage</Text>
-                    <ProgressChart
-                        data={getVaccinationData()}
-                        width={CHART_WIDTH - 40}
-                        height={180}
-                        strokeWidth={16}
-                        radius={32}
-                        chartConfig={{
-                            ...chartConfig,
-                            color: (opacity = 1) => activeTab === 'pig'
-                                ? `rgba(59, 130, 246, ${opacity})`
-                                : `rgba(245, 158, 11, ${opacity})`,
-                        }}
-                        hideLegend={false}
-                        style={styles.chart}
-                    />
+                    <ChartContainer>
+                        <ProgressChart
+                            data={getVaccinationData()}
+                            width={CHART_WIDTH - 40}
+                            height={180}
+                            strokeWidth={16}
+                            radius={32}
+                            chartConfig={{
+                                ...chartConfig,
+                                color: (opacity = 1) => getThemeColor(),
+                            }}
+                            hideLegend={false}
+                            style={styles.chart}
+                            // Disable touch gestures on web
+                            {...(Platform.OS === 'web' && {
+                                onStartShouldSetResponder: undefined,
+                                onResponderTerminationRequest: undefined,
+                                onResponderGrant: undefined,
+                                onResponderMove: undefined,
+                                onResponderRelease: undefined,
+                            })}
+                        />
+                    </ChartContainer>
                     <View style={styles.legendContainer}>
                         {vaccinationLabels.map((label, index) => (
                             <View key={index} style={styles.legendItem}>
@@ -211,19 +287,29 @@ export default function AnalyticsScreen() {
                 <View style={styles.card}>
                     <Text style={styles.cardTitle}>Feed Consumption (Last 4 Weeks)</Text>
                     <Text style={styles.unitText}>in kg</Text>
-                    <BarChart
-                        data={getRationData()}
-                        width={CHART_WIDTH - 40}
-                        height={220}
-                        yAxisLabel=""
-                        yAxisSuffix=""
-                        chartConfig={{
-                            ...chartConfig,
-                            barPercentage: 0.7,
-                        }}
-                        style={styles.chart}
-                        showValuesOnTopOfBars
-                    />
+                    <ChartContainer>
+                        <BarChart
+                            data={getRationData()}
+                            width={CHART_WIDTH - 40}
+                            height={220}
+                            yAxisLabel=""
+                            yAxisSuffix=""
+                            chartConfig={{
+                                ...chartConfig,
+                                barPercentage: 0.7,
+                            }}
+                            style={styles.chart}
+                            showValuesOnTopOfBars
+                            // Disable touch gestures on web
+                            {...(Platform.OS === 'web' && {
+                                onStartShouldSetResponder: undefined,
+                                onResponderTerminationRequest: undefined,
+                                onResponderGrant: undefined,
+                                onResponderMove: undefined,
+                                onResponderRelease: undefined,
+                            })}
+                        />
+                    </ChartContainer>
                 </View>
 
                 {/* Gov Schemes */}

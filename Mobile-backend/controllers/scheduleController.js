@@ -11,26 +11,52 @@ import {
     calculateNextCheckupDate
 } from "../config/scheduleTemplates.js";
 
-// Generate vaccination schedule for an animal
 export const generateVaccinationSchedule = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { animalType, birthDate, breed } = req.body;
+        const { animalType, animal_age_days, breed, birthDate } = req.body;
 
-        console.log('📅 Generating vaccination schedule:', { userId, animalType, birthDate, breed });
+        console.log('📅 Generating vaccination schedule:', { userId, animalType, animal_age_days, breed, birthDate });
 
-        // Validation
-        if (!animalType || !birthDate) {
+        // Validation - accept either birthDate or animal_age_days
+        if (!animalType) {
             return res.status(400).json({
-                error: "Animal type and birth date are required"
+                error: "Animal type is required"
             });
         }
 
-        // Validate date
-        const parsedBirthDate = new Date(birthDate);
-        if (isNaN(parsedBirthDate.getTime())) {
-            return res.status(400).json({ error: "Invalid birth date format" });
+        let ageInDays;
+        
+        // If birthDate is provided, calculate age in days
+        if (birthDate) {
+            const parsedBirthDate = new Date(birthDate);
+            if (isNaN(parsedBirthDate.getTime())) {
+                return res.status(400).json({ error: "Invalid birth date format" });
+            }
+            
+            const today = new Date();
+            ageInDays = Math.floor((today - parsedBirthDate) / (1000 * 60 * 60 * 24));
+        } 
+        // If animal_age_days is provided directly
+        else if (animal_age_days) {
+            ageInDays = parseInt(animal_age_days);
+            if (isNaN(ageInDays)) {
+                return res.status(400).json({ error: "Invalid animal age. Please provide a number." });
+            }
         }
+        // Neither provided
+        else {
+            return res.status(400).json({
+                error: "Either birth date or animal age (in days) is required"
+            });
+        }
+
+        // Ensure age is not negative
+        if (ageInDays < 0) {
+            return res.status(400).json({ error: "Birth date cannot be in the future" });
+        }
+
+        console.log(`📊 Animal age in days: ${ageInDays}`);
 
         let scheduleTemplate = [];
         let species = animalType.toLowerCase();
@@ -59,20 +85,37 @@ export const generateVaccinationSchedule = async (req, res) => {
             });
         }
 
+        // Filter vaccinations based on current age
+        const applicableVaccinations = scheduleTemplate.filter(vaccine => {
+            // Only include vaccines that should be given at or after current age
+            return vaccine.age_days >= ageInDays;
+        });
+
+        if (applicableVaccinations.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: "No vaccinations needed at this age",
+                data: []
+            });
+        }
+
         // Generate vaccination records
-        const vaccinations = scheduleTemplate.map(template => {
-            const scheduledDate = calculateVaccinationDate(parsedBirthDate, template.age_days);
+        const vaccinations = applicableVaccinations.map(template => {
+            // Calculate days from now until this vaccine should be given
+            const daysFromNow = template.age_days - ageInDays;
+            const scheduledDate = new Date();
+            scheduledDate.setDate(scheduledDate.getDate() + daysFromNow);
 
             return {
                 user_id: userId,
                 species: species,
                 vaccine_name: template.vaccine_name,
-                scheduled_date: scheduledDate,
+                scheduled_date: scheduledDate.toISOString().split('T')[0],
                 administration_method: template.administration_method || '',
                 notes: `${template.purpose} - ${template.notes}`,
                 schedule_type: 'auto',
                 animal_age_days: template.age_days,
-                status: null // pending
+                status: 'pending'
             };
         });
 
@@ -93,6 +136,7 @@ export const generateVaccinationSchedule = async (req, res) => {
             success: true,
             message: `Generated ${data.length} vaccination schedules`,
             count: data.length,
+            animal_age_days: ageInDays, // Return current age in response
             data: data
         });
 
@@ -101,6 +145,7 @@ export const generateVaccinationSchedule = async (req, res) => {
         res.status(500).json({ error: "Server error: " + err.message });
     }
 };
+
 
 // Generate checkup schedule for an animal
 export const generateCheckupSchedule = async (req, res) => {
@@ -145,33 +190,47 @@ export const generateCheckupSchedule = async (req, res) => {
 
         scheduleTemplate.forEach(template => {
             let currentDate = new Date(parsedStartDate);
+            let count = 0;
 
             // Generate multiple instances based on frequency
-            while (currentDate <= threeMonthsLater) {
+            while (currentDate <= threeMonthsLater && count < 12) {
                 checkups.push({
                     user_id: userId,
                     species: species,
                     animal_name: animalName || `${species.charAt(0).toUpperCase() + species.slice(1)} Health Check`,
-                    scheduled_date: currentDate.toISOString(),
+                    scheduled_date: currentDate.toISOString().split('T')[0], // YYYY-MM-DD format
                     administration: template.type,
-                    notes: `${template.checks.join(', ')} - ${template.notes}`,
-                    schedule_type: 'auto',
-                    frequency: template.frequency,
-                    is_recurring: true,
-                    status: null
+                    notes: `${template.checks?.join(', ') || ''} - ${template.notes || ''}`.trim()
+                    // Removed: schedule_type, frequency, is_recurring
                 });
 
                 // Calculate next occurrence
-                currentDate = new Date(calculateNextCheckupDate(currentDate, template.frequency));
+                currentDate = new Date(currentDate);
+                if (template.frequency === 'daily') {
+                    currentDate.setDate(currentDate.getDate() + 1);
+                } else if (template.frequency === 'weekly') {
+                    currentDate.setDate(currentDate.getDate() + 7);
+                } else if (template.frequency === 'monthly') {
+                    currentDate.setMonth(currentDate.getMonth() + 1);
+                } else {
+                    currentDate.setDate(currentDate.getDate() + 7);
+                }
 
-                // Limit daily/weekly to avoid too many records
-                if (template.frequency === 'daily' && checkups.length > 90) break;
-                if (template.frequency === 'weekly' && checkups.length > 12) break;
+                count++;
             }
         });
 
-        // Limit total checkups to prevent overwhelming
-        const limitedCheckups = checkups.slice(0, 50);
+        // Limit total checkups
+        const limitedCheckups = checkups.slice(0, 30);
+
+        if (limitedCheckups.length === 0) {
+            return res.status(200).json({
+                success: true,
+                message: "No checkups generated based on the schedule",
+                count: 0,
+                data: []
+            });
+        }
 
         // Insert checkups
         const { data, error } = await supabase
@@ -210,17 +269,17 @@ export const getScheduleRecommendations = async (req, res) => {
             .select("species, schedule_type")
             .eq("user_id", userId);
 
-        // Check existing checkups
+        // Check existing checkups - remove schedule_type filter
         const { data: checkups } = await supabase
             .from("animal_checkup")
-            .select("species, schedule_type")
+            .select("species")
             .eq("user_id", userId);
 
         const recommendations = [];
 
         // Analyze and recommend
         const hasAutoVaccinations = vaccinations?.some(v => v.schedule_type === 'auto');
-        const hasAutoCheckups = checkups?.some(c => c.schedule_type === 'auto');
+        const hasCheckups = checkups && checkups.length > 0;
 
         if (!hasAutoVaccinations) {
             recommendations.push({
@@ -231,7 +290,7 @@ export const getScheduleRecommendations = async (req, res) => {
             });
         }
 
-        if (!hasAutoCheckups) {
+        if (!hasCheckups) {
             recommendations.push({
                 type: 'checkup',
                 title: 'Set up Health Checkup Schedule',
@@ -262,8 +321,7 @@ export const getScheduleRecommendations = async (req, res) => {
             stats: {
                 total_vaccinations: vaccinations?.length || 0,
                 total_checkups: checkups?.length || 0,
-                auto_vaccinations: vaccinations?.filter(v => v.schedule_type === 'auto').length || 0,
-                auto_checkups: checkups?.filter(c => c.schedule_type === 'auto').length || 0
+                auto_vaccinations: vaccinations?.filter(v => v.schedule_type === 'auto').length || 0
             }
         });
 

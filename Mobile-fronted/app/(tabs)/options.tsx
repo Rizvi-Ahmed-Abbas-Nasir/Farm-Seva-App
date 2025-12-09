@@ -1,6 +1,6 @@
 import React from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-import { Activity, Bell, Thermometer } from "lucide-react-native";
+import { Activity, Bell, Thermometer, MessageCircle } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useLanguage } from "@/contexts/LanguageContext";
 
@@ -29,6 +29,13 @@ export default function OptionsScreen() {
       icon: Thermometer,
       route: "/outbreak",
       color: "#DBEAFE",
+    },
+    {
+      title: t('options.chatbot') || "AI Chatbot",
+      desc: t('options.chatbotDesc') || "Get help with pig & poultry management",
+      icon: MessageCircle,
+      route: "/chatbot",
+      color: "#F0FDF4",
     },
   ];
 

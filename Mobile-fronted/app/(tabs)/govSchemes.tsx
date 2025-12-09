@@ -18,6 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import Papa from 'papaparse';
+import { offlineService } from '@/app/lib/offlineService';
+import OfflineIndicator from '@/components/OfflineIndicator';
 
 const { width, height } = Dimensions.get('window');
 const isSmallDevice = width < 375;
@@ -59,16 +61,79 @@ export default function GovtScheme() {
   const [refreshing, setRefreshing] = useState(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+  const [isOnline, setIsOnline] = useState(true);
 
   useEffect(() => {
     fetchCSVData();
     loadSavedData();
+    
+    // Subscribe to network status
+    const unsubscribe = offlineService.subscribe((online) => {
+      setIsOnline(online);
+      if (online) {
+        fetchCSVData();
+      }
+    });
+    
+    return () => unsubscribe();
   }, []);
 
   const fetchCSVData = async () => {
     try {
       setLoading(true);
+      
+      // Check if offline - use cached data
+      if (!offlineService.isConnected()) {
+        console.log('📴 Offline - loading cached government schemes');
+        const cached = await offlineService.getCachedGovtSchemes();
+        if (cached && cached.length > 0) {
+          setSchemes(cached);
+          setFilteredSchemes(cached);
+          
+          // Extract categories from cached data
+          const foundCategories = new Set<string>();
+          cached.forEach(scheme => {
+            const text = (scheme["Govt Scheme Name"] + " " + scheme["Scheme Description"]).toLowerCase();
+            if (text.includes("pig") || text.includes("swine")) foundCategories.add("Pig Farming");
+            if (text.includes("poultry") || text.includes("chicken") || text.includes("hen")) foundCategories.add("Poultry Farming");
+          });
+          foundCategories.add("General Agriculture");
+          setCategories(Array.from(foundCategories));
+          
+          setLoading(false);
+          return;
+        } else {
+          Alert.alert('Offline', 'No cached data available. Please connect to the internet to fetch schemes.');
+          setLoading(false);
+          return;
+        }
+      }
+
       const response = await fetch(SHEET_URL);
+      
+      if (!response.ok) {
+        // Try cached data on error
+        const cached = await offlineService.getCachedGovtSchemes();
+        if (cached && cached.length > 0) {
+          console.log('📦 Using cached schemes due to error');
+          setSchemes(cached);
+          setFilteredSchemes(cached);
+          
+          const foundCategories = new Set<string>();
+          cached.forEach(scheme => {
+            const text = (scheme["Govt Scheme Name"] + " " + scheme["Scheme Description"]).toLowerCase();
+            if (text.includes("pig") || text.includes("swine")) foundCategories.add("Pig Farming");
+            if (text.includes("poultry") || text.includes("chicken") || text.includes("hen")) foundCategories.add("Poultry Farming");
+          });
+          foundCategories.add("General Agriculture");
+          setCategories(Array.from(foundCategories));
+          
+          setLoading(false);
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const csvText = await response.text();
 
       Papa.parse(csvText, {
@@ -98,6 +163,9 @@ export default function GovtScheme() {
 
           setSchemes(allowedData);
           setFilteredSchemes(allowedData);
+          
+          // Cache the data for offline use
+          offlineService.cacheGovtSchemes(allowedData);
 
           // Analyze data to find categories for allowed schemes
           const foundCategories = new Set<string>();
@@ -114,12 +182,43 @@ export default function GovtScheme() {
         },
         error: (error: any) => {
           console.error('CSV Parse Error:', error);
-          Alert.alert('Error', 'Failed to load schemes data');
-          setLoading(false);
+          
+          // Try cached data on parse error
+          offlineService.getCachedGovtSchemes().then(cached => {
+            if (cached && cached.length > 0) {
+              console.log('📦 Using cached schemes due to parse error');
+              setSchemes(cached);
+              setFilteredSchemes(cached);
+            } else {
+              Alert.alert('Error', 'Failed to load schemes data');
+            }
+            setLoading(false);
+          });
         }
       });
     } catch (error) {
       console.error('Fetch Error:', error);
+      
+      // Try cached data on error
+      const cached = await offlineService.getCachedGovtSchemes();
+      if (cached && cached.length > 0) {
+        console.log('📦 Using cached schemes due to fetch error');
+        setSchemes(cached);
+        setFilteredSchemes(cached);
+        
+        const foundCategories = new Set<string>();
+        cached.forEach(scheme => {
+          const text = (scheme["Govt Scheme Name"] + " " + scheme["Scheme Description"]).toLowerCase();
+          if (text.includes("pig") || text.includes("swine")) foundCategories.add("Pig Farming");
+          if (text.includes("poultry") || text.includes("chicken") || text.includes("hen")) foundCategories.add("Poultry Farming");
+        });
+        foundCategories.add("General Agriculture");
+        setCategories(Array.from(foundCategories));
+        
+        setLoading(false);
+        return;
+      }
+      
       Alert.alert('Error', 'Failed to fetch data');
       setLoading(false);
     }
@@ -278,7 +377,7 @@ export default function GovtScheme() {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f5f5f5" />
-
+      <OfflineIndicator />
       <ScrollView
         style={styles.scrollView}
         refreshControl={

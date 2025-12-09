@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Animated, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Image, TouchableOpacity, Animated, Dimensions, Modal } from 'react-native';
 import { Link } from 'expo-router';
 import { QuickActions } from '@/components/QuickActions';
 import { Feather } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import LanguageSelector from '@/components/LanguageSelector';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { notificationService } from '@/app/lib/notificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -211,9 +212,101 @@ const NewsSection = () => {
 export default function DashboardScreen() {
   const { t } = useLanguage();
   const [weather, setWeather] = useState<WeatherData | null>(null);
+  const [showControlPanel, setShowControlPanel] = useState(false);
   const headerAnim = useRef(new Animated.Value(0)).current;
   const statusAnim = useRef(new Animated.Value(0)).current;
   const weatherAnim = useRef(new Animated.Value(0)).current;
+  
+  // IoT Control States
+  const [temperature, setTemperature] = useState(25);
+  const [waterLevel, setWaterLevel] = useState(75);
+  const [humidity, setHumidity] = useState(60);
+  const [ammoniaLevel, setAmmoniaLevel] = useState(15);
+  const [ventilation, setVentilation] = useState(false);
+  const [airQuality, setAirQuality] = useState(85);
+  
+  // Track last notification time to avoid spam
+  const lastNotificationTime = useRef<{ [key: string]: number }>({});
+
+  // Monitor IoT values and send notifications for critical values
+  useEffect(() => {
+    const checkIoTAlerts = async () => {
+      const now = Date.now();
+      const cooldown = 5 * 60 * 1000; // 5 minutes cooldown between notifications
+
+      // Temperature alerts (critical: >30°C or <18°C)
+      if (temperature > 30 || temperature < 18) {
+        const key = 'temperature';
+        if (!lastNotificationTime.current[key] || now - lastNotificationTime.current[key] > cooldown) {
+          await notificationService.scheduleIoTAlert(
+            'Temperature',
+            temperature,
+            temperature > 30 ? 30 : 18,
+            temperature > 32 || temperature < 16 ? 'critical' : 'high'
+          );
+          lastNotificationTime.current[key] = now;
+        }
+      }
+
+      // Water level alerts (critical: <20%)
+      if (waterLevel < 20) {
+        const key = 'waterLevel';
+        if (!lastNotificationTime.current[key] || now - lastNotificationTime.current[key] > cooldown) {
+          await notificationService.scheduleIoTAlert(
+            'Water Level',
+            waterLevel,
+            20,
+            waterLevel < 10 ? 'critical' : 'low'
+          );
+          lastNotificationTime.current[key] = now;
+        }
+      }
+
+      // Humidity alerts (critical: >80% or <40%)
+      if (humidity > 80 || humidity < 40) {
+        const key = 'humidity';
+        if (!lastNotificationTime.current[key] || now - lastNotificationTime.current[key] > cooldown) {
+          await notificationService.scheduleIoTAlert(
+            'Humidity',
+            humidity,
+            humidity > 80 ? 80 : 40,
+            humidity > 85 || humidity < 35 ? 'critical' : 'high'
+          );
+          lastNotificationTime.current[key] = now;
+        }
+      }
+
+      // Ammonia level alerts (critical: >25 ppm)
+      if (ammoniaLevel > 25) {
+        const key = 'ammoniaLevel';
+        if (!lastNotificationTime.current[key] || now - lastNotificationTime.current[key] > cooldown) {
+          await notificationService.scheduleIoTAlert(
+            'Ammonia Level',
+            ammoniaLevel,
+            25,
+            ammoniaLevel > 30 ? 'critical' : 'high'
+          );
+          lastNotificationTime.current[key] = now;
+        }
+      }
+
+      // Air quality alerts (critical: <50 AQI)
+      if (airQuality < 50) {
+        const key = 'airQuality';
+        if (!lastNotificationTime.current[key] || now - lastNotificationTime.current[key] > cooldown) {
+          await notificationService.scheduleIoTAlert(
+            'Air Quality',
+            airQuality,
+            50,
+            airQuality < 30 ? 'critical' : 'low'
+          );
+          lastNotificationTime.current[key] = now;
+        }
+      }
+    };
+
+    checkIoTAlerts();
+  }, [temperature, waterLevel, humidity, ammoniaLevel, airQuality]);
 
   useEffect(() => {
     fetchWeatherData();
@@ -463,6 +556,256 @@ export default function DashboardScreen() {
       </View>
 
       <View style={styles.footer} />
+      
+      {/* Floating Action Button */}
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setShowControlPanel(true)}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={['#3B82F6', '#2563EB']}
+          style={styles.fabGradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+        >
+          <Feather name="sliders" size={24} color="#FFFFFF" />
+        </LinearGradient>
+      </TouchableOpacity>
+
+      {/* IoT Control Panel Modal */}
+      <Modal
+        visible={showControlPanel}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowControlPanel(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.controlPanel}>
+            <LinearGradient
+              colors={['#FFFFFF', '#F9FAFB']}
+              style={styles.panelGradient}
+            >
+              {/* Panel Header */}
+              <View style={styles.panelHeader}>
+                <View style={styles.panelHeaderLeft}>
+                  <View style={styles.panelIconContainer}>
+                    <Feather name="cpu" size={24} color="#3B82F6" />
+                  </View>
+                  <View>
+                    <Text style={styles.panelTitle}>IoT Control Panel</Text>
+                    <Text style={styles.panelSubtitle}>Farm Environment Control</Text>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setShowControlPanel(false)}
+                  style={styles.closeButton}
+                >
+                  <Feather name="x" size={24} color="#6B7280" />
+                </TouchableOpacity>
+              </View>
+
+              <ScrollView 
+                style={styles.panelContent}
+                showsVerticalScrollIndicator={false}
+              >
+                {/* Temperature Control */}
+                <View style={styles.controlCard}>
+                  <View style={styles.controlHeader}>
+                    <View style={[styles.controlIcon, { backgroundColor: '#FEE2E2' }]}>
+                      <Feather name="thermometer" size={20} color="#EF4444" />
+                    </View>
+                    <View style={styles.controlInfo}>
+                      <Text style={styles.controlLabel}>Temperature</Text>
+                      <Text style={styles.controlUnit}>°C</Text>
+                    </View>
+                  </View>
+                  <View style={styles.controlValueContainer}>
+                    <Text style={styles.controlValue}>{temperature}°C</Text>
+                    <View style={styles.controlButtons}>
+                      <TouchableOpacity
+                        style={[styles.controlButton, styles.controlButtonMinus]}
+                        onPress={() => setTemperature(Math.max(15, temperature - 1))}
+                      >
+                        <Feather name="minus" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.controlButton, styles.controlButtonPlus]}
+                        onPress={() => setTemperature(Math.min(35, temperature + 1))}
+                      >
+                        <Feather name="plus" size={18} color="#10B981" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Water Level Control */}
+                <View style={styles.controlCard}>
+                  <View style={styles.controlHeader}>
+                    <View style={[styles.controlIcon, { backgroundColor: '#DBEAFE' }]}>
+                      <Feather name="droplet" size={20} color="#3B82F6" />
+                    </View>
+                    <View style={styles.controlInfo}>
+                      <Text style={styles.controlLabel}>Water Level</Text>
+                      <Text style={styles.controlUnit}>%</Text>
+                    </View>
+                  </View>
+                  <View style={styles.controlValueContainer}>
+                    <Text style={styles.controlValue}>{waterLevel}%</Text>
+                    <View style={styles.progressBarContainer}>
+                      <View style={[styles.progressBar, { width: `${waterLevel}%`, backgroundColor: '#3B82F6' }]} />
+                    </View>
+                    <View style={styles.controlButtons}>
+                      <TouchableOpacity
+                        style={[styles.controlButton, styles.controlButtonMinus]}
+                        onPress={() => setWaterLevel(Math.max(0, waterLevel - 5))}
+                      >
+                        <Feather name="minus" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.controlButton, styles.controlButtonPlus]}
+                        onPress={() => setWaterLevel(Math.min(100, waterLevel + 5))}
+                      >
+                        <Feather name="plus" size={18} color="#10B981" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Humidity Control */}
+                <View style={styles.controlCard}>
+                  <View style={styles.controlHeader}>
+                    <View style={[styles.controlIcon, { backgroundColor: '#D1FAE5' }]}>
+                      <Feather name="cloud" size={20} color="#10B981" />
+                    </View>
+                    <View style={styles.controlInfo}>
+                      <Text style={styles.controlLabel}>Humidity</Text>
+                      <Text style={styles.controlUnit}>%</Text>
+                    </View>
+                  </View>
+                  <View style={styles.controlValueContainer}>
+                    <Text style={styles.controlValue}>{humidity}%</Text>
+                    <View style={styles.controlButtons}>
+                      <TouchableOpacity
+                        style={[styles.controlButton, styles.controlButtonMinus]}
+                        onPress={() => setHumidity(Math.max(30, humidity - 5))}
+                      >
+                        <Feather name="minus" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.controlButton, styles.controlButtonPlus]}
+                        onPress={() => setHumidity(Math.min(90, humidity + 5))}
+                      >
+                        <Feather name="plus" size={18} color="#10B981" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Ammonia Level Control */}
+                <View style={styles.controlCard}>
+                  <View style={styles.controlHeader}>
+                    <View style={[styles.controlIcon, { backgroundColor: '#FEF3C7' }]}>
+                      <Feather name="alert-circle" size={20} color="#F59E0B" />
+                    </View>
+                    <View style={styles.controlInfo}>
+                      <Text style={styles.controlLabel}>Ammonia Level</Text>
+                      <Text style={styles.controlUnit}>ppm</Text>
+                    </View>
+                  </View>
+                  <View style={styles.controlValueContainer}>
+                    <Text style={[styles.controlValue, { color: ammoniaLevel > 20 ? '#EF4444' : '#10B981' }]}>
+                      {ammoniaLevel} ppm
+                    </Text>
+                    <View style={styles.controlButtons}>
+                      <TouchableOpacity
+                        style={[styles.controlButton, styles.controlButtonMinus]}
+                        onPress={() => setAmmoniaLevel(Math.max(0, ammoniaLevel - 2))}
+                      >
+                        <Feather name="minus" size={18} color="#EF4444" />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.controlButton, styles.controlButtonPlus]}
+                        onPress={() => setAmmoniaLevel(Math.min(50, ammoniaLevel + 2))}
+                      >
+                        <Feather name="plus" size={18} color="#10B981" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Ventilation Control */}
+                <View style={styles.controlCard}>
+                  <View style={styles.controlHeader}>
+                    <View style={[styles.controlIcon, { backgroundColor: '#E0E7FF' }]}>
+                      <Feather name="wind" size={20} color="#6366F1" />
+                    </View>
+                    <View style={styles.controlInfo}>
+                      <Text style={styles.controlLabel}>Ventilation</Text>
+                      <Text style={styles.controlStatus}>
+                        {ventilation ? 'Open' : 'Closed'}
+                      </Text>
+                    </View>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.toggleButton, ventilation && styles.toggleButtonActive]}
+                    onPress={() => setVentilation(!ventilation)}
+                  >
+                    <LinearGradient
+                      colors={ventilation ? ['#10B981', '#059669'] : ['#E5E7EB', '#D1D5DB']}
+                      style={styles.toggleGradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                    >
+                      <View style={[styles.toggleCircle, ventilation && styles.toggleCircleActive]}>
+                        <Feather 
+                          name={ventilation ? "check" : "x"} 
+                          size={16} 
+                          color={ventilation ? "#FFFFFF" : "#9CA3AF"} 
+                        />
+                      </View>
+                      <Text style={[styles.toggleText, ventilation && styles.toggleTextActive]}>
+                        {ventilation ? 'ON' : 'OFF'}
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Air Quality Display */}
+                <View style={styles.controlCard}>
+                  <View style={styles.controlHeader}>
+                    <View style={[styles.controlIcon, { backgroundColor: '#F3E8FF' }]}>
+                      <Feather name="airplay" size={20} color="#8B5CF6" />
+                    </View>
+                    <View style={styles.controlInfo}>
+                      <Text style={styles.controlLabel}>Air Quality</Text>
+                      <Text style={styles.controlUnit}>AQI</Text>
+                    </View>
+                  </View>
+                  <View style={styles.airQualityContainer}>
+                    <View style={styles.airQualityCircle}>
+                      <LinearGradient
+                        colors={airQuality >= 80 ? ['#10B981', '#059669'] : airQuality >= 50 ? ['#F59E0B', '#D97706'] : ['#EF4444', '#DC2626']}
+                        style={styles.airQualityGradient}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 1 }}
+                      >
+                        <Text style={styles.airQualityValue}>{airQuality}</Text>
+                        <Text style={styles.airQualityLabel}>AQI</Text>
+                      </LinearGradient>
+                    </View>
+                    <Text style={[styles.airQualityStatus, { 
+                      color: airQuality >= 80 ? '#10B981' : airQuality >= 50 ? '#F59E0B' : '#EF4444' 
+                    }]}>
+                      {airQuality >= 80 ? 'Excellent' : airQuality >= 50 ? 'Moderate' : 'Poor'}
+                    </Text>
+                  </View>
+                </View>
+              </ScrollView>
+            </LinearGradient>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -957,5 +1300,270 @@ const styles = StyleSheet.create({
   newsDotActive: {
     backgroundColor: '#3B82F6',
     width: 24,
+  },
+  // FAB Styles
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 20,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 10,
+    zIndex: 1000,
+    overflow: 'hidden',
+  },
+  fabGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  controlPanel: {
+    height: '85%',
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    overflow: 'hidden',
+  },
+  panelGradient: {
+    flex: 1,
+    paddingTop: 20,
+  },
+  panelHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  panelHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    flex: 1,
+  },
+  panelIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#EFF6FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  panelTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -0.5,
+  },
+  panelSubtitle: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  panelContent: {
+    flex: 1,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+  },
+  // Control Card Styles
+  controlCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 3,
+    borderWidth: 1,
+    borderColor: '#F3F4F6',
+  },
+  controlHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  controlIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  controlInfo: {
+    flex: 1,
+  },
+  controlLabel: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#111827',
+    marginBottom: 2,
+  },
+  controlUnit: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  controlStatus: {
+    fontSize: 12,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  controlValueContainer: {
+    alignItems: 'center',
+    gap: 12,
+  },
+  controlValue: {
+    fontSize: 36,
+    fontWeight: '800',
+    color: '#111827',
+    letterSpacing: -1,
+  },
+  progressBarContainer: {
+    width: '100%',
+    height: 8,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressBar: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  controlButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  controlButton: {
+    flex: 1,
+    height: 48,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  controlButtonMinus: {
+    backgroundColor: '#FEF2F2',
+    borderColor: '#FEE2E2',
+  },
+  controlButtonPlus: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#D1FAE5',
+  },
+  // Toggle Button Styles
+  toggleButton: {
+    width: '100%',
+    height: 56,
+    borderRadius: 16,
+    overflow: 'hidden',
+    marginTop: 8,
+  },
+  toggleButtonActive: {
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  toggleGradient: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  toggleCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  toggleCircleActive: {
+    backgroundColor: '#FFFFFF',
+  },
+  toggleText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#9CA3AF',
+  },
+  toggleTextActive: {
+    color: '#FFFFFF',
+  },
+  // Air Quality Styles
+  airQualityContainer: {
+    alignItems: 'center',
+    gap: 16,
+    marginTop: 8,
+  },
+  airQualityCircle: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  airQualityGradient: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  airQualityValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: '#FFFFFF',
+    letterSpacing: -1,
+  },
+  airQualityLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginTop: 4,
+  },
+  airQualityStatus: {
+    fontSize: 18,
+    fontWeight: '700',
   },
 });

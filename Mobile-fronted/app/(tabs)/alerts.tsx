@@ -37,6 +37,10 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import Papa from "papaparse";
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { notificationService } from '@/app/lib/notificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { offlineService } from '@/app/lib/offlineService';
+import OfflineIndicator from '@/components/OfflineIndicator';
 
 export interface AlertItem {
   Type: string;
@@ -206,6 +210,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
   const [showAllCritical, setShowAllCritical] = useState(false);
   const [showAllWarning, setShowAllWarning] = useState(false);
   const [showAllFiltered, setShowAllFiltered] = useState(false);
+  const [temperature, setTemperature] = useState<number | null>(null);
+  const [isOnline, setIsOnline] = useState(true);
 
 
   useEffect(() => {
@@ -416,22 +422,116 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
       totalAlerts: alertData.length,
       lastUpdated: new Date().toISOString()
     });
+
+    // Schedule risk notification if critical or high
+    if (overallLevel === 'Critical' || overallLevel === 'High') {
+      scheduleRiskNotifications(overallLevel, overview);
+    }
+  };
+
+  const scheduleRiskNotifications = async (level: string, overview: string) => {
+    try {
+      // Check if we already notified for this today
+      const today = new Date().toDateString();
+      const lastNotified = await AsyncStorage.getItem('lastRiskNotification');
+
+      if (lastNotified === today) {
+        return; // Already notified today
+      }
+
+      await notificationService.scheduleRiskAlert(level, overview);
+      await AsyncStorage.setItem('lastRiskNotification', today);
+        trigger: null, // Send immediately
+      });
+
+      await AsyncStorage.setItem('lastRiskNotification', today);
+      console.log(`⚠️ Scheduled risk notification: ${level}`);
+
+    } catch (error) {
+      console.error('Error scheduling risk notification:', error);
+    }
   };
 
   // Load data on mount
   useEffect(() => {
     loadData();
+    fetchTemperature();
+    
+    // Subscribe to network status
+    const unsubscribe = offlineService.subscribe((online) => {
+      setIsOnline(online);
+      if (online) {
+        fetchTemperature();
+        loadData();
+      }
+    });
+    
+    return () => unsubscribe();
   }, []);
+
+  // Fetch temperature data
+  const fetchTemperature = async () => {
+    try {
+      if (!offlineService.isConnected()) {
+        // Use cached temperature if offline
+        const cached = await AsyncStorage.getItem('@cached_temperature');
+        if (cached) {
+          setTemperature(parseFloat(cached));
+        }
+        return;
+      }
+
+      const WEATHER_API_KEY = "333c397bca044d41a41203942250412";
+      const WEATHER_API_URL = 'https://api.weatherapi.com/v1';
+      const LOCATION = 'Bhopal, MP';
+
+      const response = await fetch(
+        `${WEATHER_API_URL}/current.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(LOCATION)}&aqi=no`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+        const temp = data.current?.temp_c || null;
+        setTemperature(temp);
+        if (temp) {
+          await AsyncStorage.setItem('@cached_temperature', temp.toString());
+        }
+      }
+    } catch (error) {
+      console.error("Error fetching temperature:", error);
+      // Try cached temperature on error
+      const cached = await AsyncStorage.getItem('@cached_temperature');
+      if (cached) {
+        setTemperature(parseFloat(cached));
+      }
+    }
+  };
 
   // Fetch latest risk assessment from backend
   const fetchLatestAssessment = async () => {
     try {
-      const API_URL = process.env.EXPO_PUBLIC_API_URL;
+      const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000';
+      
+      if (!offlineService.isConnected()) {
+        // Use cached assessment if offline
+        const cached = await AsyncStorage.getItem('@cached_risk_assessment');
+        if (cached) {
+          try {
+            setRiskAssessment(JSON.parse(cached));
+            return true;
+          } catch (e) {
+            console.error("Error parsing cached assessment:", e);
+          }
+        }
+        return false;
+      }
+
       const response = await fetch(`${API_URL}/risk/latest`);
 
       if (response.ok) {
         const data = await response.json();
         setRiskAssessment(data);
+        await AsyncStorage.setItem('@cached_risk_assessment', JSON.stringify(data));
         console.log("Loaded latest assessment from backend:", data);
         return true;
       } else if (response.status === 404) {
@@ -440,6 +540,16 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
       }
     } catch (error) {
       console.error("Error fetching latest assessment:", error);
+      // Try cached assessment on error
+      const cached = await AsyncStorage.getItem('@cached_risk_assessment');
+      if (cached) {
+        try {
+          setRiskAssessment(JSON.parse(cached));
+          return true;
+        } catch (e) {
+          console.error("Error parsing cached assessment:", e);
+        }
+      }
       return false;
     }
   };
@@ -786,79 +896,108 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={['#3B82F6']}
-          tintColor="#3B82F6"
-        />
-      }
-      showsVerticalScrollIndicator={false}
-    >
+    <View style={{ flex: 1 }}>
+      <OfflineIndicator />
+      <ScrollView
+        style={styles.container}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await Promise.all([loadData(), fetchTemperature(), fetchLatestAssessment()]);
+              setRefreshing(false);
+            }}
+            colors={['#3B82F6']}
+            tintColor="#3B82F6"
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+      {/* Modern Header */}
       <View style={styles.header}>
         <View style={styles.headerContent}>
-          <Text style={styles.title}>{t('alerts.title')}</Text>
-          <Text style={styles.subtitle}>{t('alerts.subtitle')}</Text>
-        </View>
-
-        <View style={styles.notificationBadge}>
-          <Bell size={24} color="#FFFFFF" />
-          {data.length > 0 && (
-            <View style={styles.badgeCount}>
-              <Text style={styles.badgeText}>{data.length}</Text>
+          <View style={styles.headerTop}>
+            <View style={styles.headerTitleContainer}>
+              <View style={styles.headerIconContainer}>
+                <Bell size={26} color="#EF4444" />
+              </View>
+              <View style={styles.headerTextContainer}>
+                <Text style={styles.title}>{t('alerts.title')}</Text>
+                <Text style={styles.subtitle}>{t('alerts.subtitle')}</Text>
+              </View>
             </View>
-          )}
+          </View>
         </View>
+        <View style={styles.headerDecoration} />
       </View>
 
+      {/* Summary Cards - 2x2 Grid */}
       <View style={styles.summarySection}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.summaryScroll}>
-          <View style={[styles.summaryCard, styles.criticalSummary]}>
-            <View style={styles.summaryIcon}>
-              <AlertTriangle size={28} color="#FFFFFF" />
+        <View style={styles.summaryRow}>
+          <LinearGradient
+            colors={['#EF4444', '#DC2626']}
+            style={styles.summaryCard}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.summaryIconContainer}>
+              <AlertTriangle size={24} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryValue}>{criticalAlerts.length}</Text>
             <Text style={styles.summaryLabel}>{t('alerts.critical')}</Text>
-            <Text style={styles.summarySubtitle}>{t('alerts.requiresAction')}</Text>
-          </View>
+          </LinearGradient>
 
-          <View style={[styles.summaryCard, styles.warningSummary]}>
-            <View style={styles.summaryIcon}>
-              <Shield size={28} color="#FFFFFF" />
+          <LinearGradient
+            colors={['#F59E0B', '#D97706']}
+            style={styles.summaryCard}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.summaryIconContainer}>
+              <Shield size={24} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryValue}>{warningAlerts.length}</Text>
             <Text style={styles.summaryLabel}>{t('alerts.warnings')}</Text>
-            <Text style={styles.summarySubtitle}>{t('alerts.needsAttention')}</Text>
-          </View>
+          </LinearGradient>
+        </View>
 
-          <View style={[styles.summaryCard, styles.infoSummary]}>
-            <View style={styles.summaryIcon}>
-              <Bell size={28} color="#FFFFFF" />
+        <View style={styles.summaryRow}>
+          <LinearGradient
+            colors={['#3B82F6', '#2563EB']}
+            style={styles.summaryCard}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.summaryIconContainer}>
+              <Bell size={24} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryValue}>{infoAlerts.length}</Text>
             <Text style={styles.summaryLabel}>{t('alerts.info')}</Text>
-            <Text style={styles.summarySubtitle}>{t('alerts.forMonitoring')}</Text>
-          </View>
+          </LinearGradient>
 
-          <View style={[styles.summaryCard, styles.totalSummary]}>
-            <View style={styles.summaryIcon}>
-              <AlertCircle size={28} color="#FFFFFF" />
+          <LinearGradient
+            colors={['#10B981', '#059669']}
+            style={styles.summaryCard}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.summaryIconContainer}>
+              <Activity size={24} color="#FFFFFF" />
             </View>
             <Text style={styles.summaryValue}>{data.length}</Text>
             <Text style={styles.summaryLabel}>{t('alerts.total')}</Text>
-            <Text style={styles.summarySubtitle}>{t('alerts.allActiveAlerts')}</Text>
-          </View>
-        </ScrollView>
+          </LinearGradient>
+        </View>
       </View>
 
       {/* Filter Buttons */}
       <View style={styles.filterSection}>
-        <View style={styles.filterTitleContainer}>
-          <Filter size={18} color="#6B7280" />
-          <Text style={styles.filterTitle}>{t('alerts.filterAlerts')}</Text>
+        <View style={styles.filterHeader}>
+          <View style={styles.filterTitleContainer}>
+            <Filter size={16} color="#6B7280" />
+            <Text style={styles.filterTitle}>{t('alerts.filterAlerts')}</Text>
+          </View>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterScroll}>
           <TouchableOpacity
@@ -874,7 +1013,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
             style={[styles.filterButton, filter === "critical" && styles.filterButtonCritical]}
             onPress={() => setFilter("critical")}
           >
-            <AlertTriangle size={16} color={filter === "critical" ? "#FFFFFF" : "#EF4444"} />
+            <AlertTriangle size={14} color={filter === "critical" ? "#FFFFFF" : "#EF4444"} />
             <Text style={[styles.filterText, filter === "critical" && styles.filterTextActive]}>
               {t('alerts.critical')} ({criticalAlerts.length})
             </Text>
@@ -884,7 +1023,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
             style={[styles.filterButton, filter === "warning" && styles.filterButtonWarning]}
             onPress={() => setFilter("warning")}
           >
-            <Shield size={16} color={filter === "warning" ? "#FFFFFF" : "#F59E0B"} />
+            <Shield size={14} color={filter === "warning" ? "#FFFFFF" : "#F59E0B"} />
             <Text style={[styles.filterText, filter === "warning" && styles.filterTextActive]}>
               {t('alerts.warnings')} ({warningAlerts.length})
             </Text>
@@ -894,7 +1033,7 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
             style={[styles.filterButton, filter === "info" && styles.filterButtonInfo]}
             onPress={() => setFilter("info")}
           >
-            <Bell size={16} color={filter === "info" ? "#FFFFFF" : "#3B82F6"} />
+            <Bell size={14} color={filter === "info" ? "#FFFFFF" : "#3B82F6"} />
             <Text style={[styles.filterText, filter === "info" && styles.filterTextActive]}>
               {t('alerts.info')} ({infoAlerts.length})
             </Text>
@@ -922,9 +1061,22 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
             <View style={[styles.metricIcon, { backgroundColor: '#FEF3C7' }]}>
               <Thermometer size={20} color="#D97706" />
             </View>
-            <Text style={styles.metricValue}>39.2°C</Text>
+            <Text style={styles.metricValue}>
+              {temperature !== null ? `${temperature.toFixed(1)}°C` : '--°C'}
+            </Text>
             <Text style={styles.metricLabel}>{t('alerts.avgTemperature')}</Text>
-            <Text style={[styles.metricStatus, { color: '#10B981' }]}>{t('alerts.normal')}</Text>
+            <Text style={[
+              styles.metricStatus, 
+              { 
+                color: temperature !== null 
+                  ? (temperature > 35 ? '#EF4444' : temperature > 30 ? '#F59E0B' : '#10B981')
+                  : '#6B7280'
+              }
+            ]}>
+              {temperature !== null 
+                ? (temperature > 35 ? 'High' : temperature > 30 ? 'Moderate' : 'Normal')
+                : 'N/A'}
+            </Text>
           </View>
 
           <View style={styles.metricCard}>
@@ -1095,13 +1247,39 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
               </View>
             )}
 
-            <TouchableOpacity
-              style={styles.generateReportButton}
-              onPress={() => router.push("/riskForm")}
-            >
-              <BarChart2 size={18} color="#FFFFFF" />
-              <Text style={styles.generateReportText}>Take New Risk Assessment</Text>
-            </TouchableOpacity>
+            <View style={styles.actionButtonsContainer}>
+              <TouchableOpacity
+                style={styles.generateReportButton}
+                onPress={() => router.push("/riskForm")}
+              >
+                <BarChart2 size={18} color="#FFFFFF" />
+                <Text style={styles.generateReportText}>Take New Risk Assessment</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.actionButton, styles.govtVetButton]}
+                onPress={() => router.push("/(tabs)/smartVet")}
+              >
+                <Shield size={18} color="#FFFFFF" />
+                <Text style={styles.actionButtonText}>Government Vet</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.actionButton, styles.outbreakButton]}
+                onPress={() => router.push("/(tabs)/outbreak")}
+              >
+                <AlertTriangle size={18} color="#FFFFFF" />
+                <Text style={styles.actionButtonText}>Outbreak Alerts</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.actionButton, styles.govtSchemeButton]}
+                onPress={() => router.push("/(tabs)/govSchemes")}
+              >
+                <Activity size={18} color="#FFFFFF" />
+                <Text style={styles.actionButtonText}>Govt Schemes</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         )}
       </View>
@@ -1204,7 +1382,8 @@ const RiskAlertsScreen: React.FC<Props> = ({ data: initialData }) => {
           Data updates every 5 minutes • {data.length} active alerts
         </Text>
       </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 };
 
@@ -1239,33 +1418,62 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingTop: 60,
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    backgroundColor: '#FFFFFF',
+    paddingBottom: 28,
+    paddingHorizontal: 20,
     borderBottomLeftRadius: 32,
     borderBottomRightRadius: 32,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
-    shadowRadius: 12,
-    elevation: 4,
+    shadowRadius: 8,
+    elevation: 3,
+    overflow: 'hidden',
+    marginBottom: 24,
+    position: 'relative',
   },
   headerContent: {
+    zIndex: 1,
+  },
+  headerTop: {
+    marginBottom: 4,
+  },
+  headerTitleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  headerTextContainer: {
     flex: 1,
   },
+  headerIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 20,
+    backgroundColor: '#FEE2E2',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerDecoration: {
+    position: 'absolute',
+    top: -50,
+    right: -50,
+    width: 200,
+    height: 200,
+    borderRadius: 100,
+    backgroundColor: '#FEF2F2',
+    opacity: 0.5,
+  },
   title: {
-    fontSize: 28,
-    fontFamily: 'Inter-Bold',
+    fontSize: 30,
+    fontWeight: '800',
     color: '#111827',
-    marginBottom: 4,
     letterSpacing: -0.5,
+    marginBottom: 4,
   },
   subtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
+    fontSize: 15,
+    fontWeight: '500',
     color: '#6B7280',
   },
   notificationBadge: {
@@ -1297,119 +1505,108 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter-Bold',
   },
   summarySection: {
-    paddingHorizontal: 24,
-    marginTop: -16,
+    paddingHorizontal: 20,
+    marginTop: -8,
+    marginBottom: 8,
   },
-  summaryScroll: {
-    paddingRight: 24,
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
   },
   summaryCard: {
-    width: 150,
-    height: 160,
+    flex: 1,
     borderRadius: 24,
     padding: 20,
-    marginRight: 16,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.1,
-    shadowRadius: 16,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+    minHeight: 140,
   },
-  criticalSummary: {
-    backgroundColor: '#EF4444',
-  },
-  warningSummary: {
-    backgroundColor: '#F59E0B',
-  },
-  infoSummary: {
-    backgroundColor: '#3B82F6',
-  },
-  totalSummary: {
-    backgroundColor: '#10B981',
-  },
-  summaryIcon: {
+  summaryIconContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 12,
   },
   summaryValue: {
-    fontSize: 28,
-    fontFamily: 'Inter-Bold',
+    fontSize: 32,
+    fontWeight: '800',
     color: '#FFFFFF',
+    marginBottom: 4,
+    letterSpacing: -1,
   },
   summaryLabel: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+    fontWeight: '600',
     color: '#FFFFFF',
-    marginTop: 4,
-  },
-  summarySubtitle: {
-    fontSize: 12,
-    fontFamily: 'Inter-Regular',
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 2,
     textAlign: 'center',
   },
   filterSection: {
-    paddingHorizontal: 24,
-    marginTop: 24,
+    paddingHorizontal: 20,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  filterHeader: {
+    marginBottom: 14,
   },
   filterTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
     gap: 8,
   },
   filterTitle: {
-    fontSize: 16,
-    fontFamily: 'Inter-SemiBold',
+    fontSize: 18,
+    fontWeight: '700',
     color: '#111827',
+    letterSpacing: -0.3,
   },
   filterScroll: {
-    paddingRight: 24,
+    marginRight: -20,
   },
   filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 16,
-    marginRight: 12,
-    borderWidth: 1,
+    paddingVertical: 10,
+    borderRadius: 20,
+    marginRight: 10,
+    borderWidth: 1.5,
     borderColor: '#E5E7EB',
-    gap: 8,
+    gap: 6,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.03,
+    shadowOpacity: 0.04,
     shadowRadius: 4,
-    elevation: 1,
+    elevation: 2,
   },
   filterButtonActive: {
     backgroundColor: '#111827',
     borderColor: '#111827',
   },
   filterButtonCritical: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: '#EF4444',
     borderColor: '#EF4444',
   },
   filterButtonWarning: {
-    backgroundColor: '#FFFBEB',
+    backgroundColor: '#F59E0B',
     borderColor: '#F59E0B',
   },
   filterButtonInfo: {
-    backgroundColor: '#EFF6FF',
+    backgroundColor: '#3B82F6',
     borderColor: '#3B82F6',
   },
   filterText: {
-    fontSize: 14,
-    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    fontWeight: '600',
     color: '#6B7280',
   },
   filterTextActive: {
@@ -1417,15 +1614,15 @@ const styles = StyleSheet.create({
   },
   section: {
     backgroundColor: '#FFFFFF',
-    marginHorizontal: 24,
-    marginTop: 24,
-    borderRadius: 24,
-    padding: 24,
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 28,
+    padding: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
+    shadowOpacity: 0.06,
     shadowRadius: 16,
-    elevation: 3,
+    elevation: 4,
     borderWidth: 1,
     borderColor: '#F3F4F6',
   },
@@ -1433,31 +1630,36 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 18,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
   sectionTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
   },
   sectionTitle: {
-    fontSize: 20,
-    fontFamily: 'Inter-Bold',
+    fontSize: 19,
+    fontWeight: '700',
     color: '#111827',
     letterSpacing: -0.3,
   },
   sectionSubtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter-Regular',
+    fontSize: 13,
+    fontWeight: '500',
     color: '#6B7280',
+    marginTop: 2,
   },
   sectionCount: {
-    fontSize: 14,
-    fontFamily: 'Inter-SemiBold',
-    color: '#111827',
-    backgroundColor: '#F3F4F6',
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#3B82F6',
+    backgroundColor: '#EFF6FF',
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 12,
+    borderRadius: 14,
   },
   assessmentButton: {
     flexDirection: 'row',
@@ -1477,11 +1679,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 12,
     marginBottom: 24,
   },
   metricCard: {
-    width: '48%', // Fixed width for 2 columns with gap
+    width: '48.5%', // Adjusted for 2 columns with gap
     backgroundColor: '#F9FAFB',
     borderRadius: 16,
     padding: 16,
@@ -1518,10 +1719,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 12,
   },
   riskCard: {
-    width: '48%', // Fixed width for 2 columns with gap
+    width: '48.5%', // Adjusted for 2 columns
     borderRadius: 20,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -1675,6 +1875,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#F3F4F6',
   },
+  actionButtonsContainer: {
+    gap: 12,
+    marginTop: 16,
+  },
   generateReportButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1687,6 +1891,28 @@ const styles = StyleSheet.create({
   generateReportText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontFamily: 'Inter-SemiBold',
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+  },
+  govtVetButton: {
+    backgroundColor: '#3B82F6',
+  },
+  outbreakButton: {
+    backgroundColor: '#EF4444',
+  },
+  govtSchemeButton: {
+    backgroundColor: '#10B981',
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontFamily: 'Inter-SemiBold',
   },
   alertCard: {

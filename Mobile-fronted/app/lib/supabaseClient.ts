@@ -13,3 +13,6 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
         detectSessionInUrl: false,
     },
 })
+
+// Default export to prevent Expo Router from treating this as a route
+export default supabase

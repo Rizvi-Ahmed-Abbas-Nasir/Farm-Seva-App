@@ -20,6 +20,9 @@ import * as Location from 'expo-location';
 import * as WebBrowser from 'expo-web-browser';
 import { Ionicons } from '@expo/vector-icons';
 import Papa from 'papaparse';
+import { offlineService } from '@/app/lib/offlineService';
+import OfflineIndicator from '@/components/OfflineIndicator';
+import { notificationService } from '@/app/lib/notificationService';
 
 const { width, height } = Dimensions.get('window');
 const isSmallDevice = width < 375;
@@ -68,6 +71,7 @@ const DiseaseAlertsDashboard = () => {
   const [customLocation, setCustomLocation] = useState('');
   const [selectedAlert, setSelectedAlert] = useState<DiseaseAlert | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
 
   // Google Sheets CSV
   const SHEET_URL = "https://docs.google.com/spreadsheets/d/1GYaSR_EL4c-oKNyiTyx1XOv2aI-ON8WmGJ0G491j35E/export?format=csv";
@@ -75,6 +79,16 @@ const DiseaseAlertsDashboard = () => {
   useEffect(() => {
     getUserLocation();
     fetchSheetData();
+    
+    // Subscribe to network status
+    const unsubscribe = offlineService.subscribe((online) => {
+      setIsOnline(online);
+      if (online) {
+        fetchSheetData();
+      }
+    });
+    
+    return () => unsubscribe();
   }, []);
 
   useEffect(() => {
@@ -130,45 +144,136 @@ const DiseaseAlertsDashboard = () => {
 
   const fetchSheetData = async () => {
     setLoading(true);
+    
+    // Check if offline - use cached data
+    if (!offlineService.isConnected()) {
+      console.log('📴 Offline - loading cached outbreak alerts');
+      const cached = await offlineService.getCachedOutbreakAlerts();
+      if (cached && cached.length > 0) {
+        setAlerts(cached);
+        setFilteredAlerts(cached);
+        setLoading(false);
+        return;
+      } else {
+        Alert.alert('Offline', 'No cached data available. Please connect to the internet to fetch outbreak alerts.');
+        setLoading(false);
+        return;
+      }
+    }
+    
     try {
       const response = await fetch(SHEET_URL);
+      
+      if (!response.ok) {
+        // Try cached data on error
+        const cached = await offlineService.getCachedOutbreakAlerts();
+        if (cached && cached.length > 0) {
+          console.log('📦 Using cached outbreak alerts due to error');
+          setAlerts(cached);
+          setFilteredAlerts(cached);
+          setLoading(false);
+          return;
+        }
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const csvText = await response.text();
 
       Papa.parse(csvText, {
         header: true,
         skipEmptyLines: true,
         complete: (result: any) => {
-          try {
-            const validRows = result.data.filter((row: any) => row['DiseaseName'] && row['Type']);
-            const parsedData: DiseaseAlert[] = validRows.map((row: any, index: number) => ({
-              id: row['OBTID'] || `alert-${index}`,
-              type: row['Type']?.trim() || '',
-              diseaseName: row['DiseaseName'] || '',
-              monthYear: row['MonthYear'] || '',
-              locationsEffected: row['Locations Effected'] ?
-                row['Locations Effected'].split(',').map((l: string) => l.trim()) : [],
-              updatedDate: row['UpdatedDate'] || '',
-              updatedOn: row['UpdatedOn'] || '',
-              overview: row['Disease Overview'] || '',
-              preventiveMeasure: row['Possible Preventive Measure'] || '',
-            }));
-            setAlerts(parsedData);
-            setFilteredAlerts(parsedData);
-          } catch (err) {
-            console.error('Parse Error:', err);
-            setError('Failed to parse data.');
-          } finally {
-            setLoading(false);
-          }
+          (async () => {
+            try {
+              const validRows = result.data.filter((row: any) => row['DiseaseName'] && row['Type']);
+              const parsedData: DiseaseAlert[] = validRows.map((row: any, index: number) => ({
+                id: row['OBTID'] || `alert-${index}`,
+                type: row['Type']?.trim() || '',
+                diseaseName: row['DiseaseName'] || '',
+                monthYear: row['MonthYear'] || '',
+                locationsEffected: row['Locations Effected'] ?
+                  row['Locations Effected'].split(',').map((l: string) => l.trim()) : [],
+                updatedDate: row['UpdatedDate'] || '',
+                updatedOn: row['UpdatedOn'] || '',
+                overview: row['Disease Overview'] || '',
+                preventiveMeasure: row['Possible Preventive Measure'] || '',
+              }));
+              setAlerts(parsedData);
+              setFilteredAlerts(parsedData);
+              
+              // Cache the data for offline use
+              await offlineService.cacheOutbreakAlerts(parsedData);
+              
+              // Schedule notifications for nearby outbreaks
+              if (userLocation.city || userLocation.state) {
+                const nearbyAlerts = parsedData.filter(alert => {
+                  const locations = Array.isArray(alert.locationsEffected) 
+                    ? alert.locationsEffected 
+                    : [alert.locationsEffected];
+                  return locations.some(loc => 
+                    loc.toLowerCase().includes(userLocation.city?.toLowerCase() || '') ||
+                    loc.toLowerCase().includes(userLocation.state?.toLowerCase() || '')
+                  );
+                });
+                
+                for (const alert of nearbyAlerts.slice(0, 3)) { // Limit to 3 notifications
+                  try {
+                    await notificationService.scheduleOutbreakAlert(
+                      alert.diseaseName,
+                      alert.locationsEffected.join(', '),
+                      alert.type || 'medium'
+                    );
+                  } catch (error) {
+                    console.error('Error scheduling outbreak notification:', error);
+                  }
+                }
+              }
+            } catch (err) {
+              console.error('Parse Error:', err);
+              
+              // Try cached data on parse error
+              const cached = await offlineService.getCachedOutbreakAlerts();
+              if (cached && cached.length > 0) {
+                console.log('📦 Using cached outbreak alerts due to parse error');
+                setAlerts(cached);
+                setFilteredAlerts(cached);
+              } else {
+                setError('Failed to parse data.');
+              }
+            } finally {
+              setLoading(false);
+            }
+          })();
         },
         error: (err: any) => {
           console.error('CSV Fetch Error:', err);
-          setError('Failed to load outbreak data.');
-          setLoading(false);
+          
+          // Try cached data on error
+          offlineService.getCachedOutbreakAlerts().then(cached => {
+            if (cached && cached.length > 0) {
+              console.log('📦 Using cached outbreak alerts due to CSV error');
+              setAlerts(cached);
+              setFilteredAlerts(cached);
+            } else {
+              setError('Failed to load outbreak data.');
+            }
+            setLoading(false);
+          });
         }
       });
     } catch (err) {
       console.error('Fetch Error:', err);
+      
+      // Try cached data on error
+      const cached = await offlineService.getCachedOutbreakAlerts();
+      if (cached && cached.length > 0) {
+        console.log('📦 Using cached outbreak alerts due to fetch error');
+        setAlerts(cached);
+        setFilteredAlerts(cached);
+        setLoading(false);
+        return;
+      }
+      
       setError('Network error. Please check your connection.');
       setLoading(false);
     }
@@ -297,7 +402,7 @@ const DiseaseAlertsDashboard = () => {
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="#f8fafc" />
-
+      <OfflineIndicator />
       <ScrollView
         style={styles.scrollView}
         refreshControl={

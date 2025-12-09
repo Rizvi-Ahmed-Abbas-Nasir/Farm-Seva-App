@@ -6,7 +6,8 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  RefreshControl
+  RefreshControl,
+  Platform
 } from 'react-native';
 import {
   Syringe,
@@ -21,12 +22,14 @@ import {
   Sparkles
 } from 'lucide-react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Notifications from 'expo-notifications';
+import { notificationService } from '@/app/lib/notificationService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { ScheduleGenerator } from '@/components/ScheduleGenerator';
 import { CountdownTimer } from '@/components/CountdownTimer';
 import { useLanguage } from '@/contexts/LanguageContext';
+import { offlineService } from '@/app/lib/offlineService';
+import OfflineIndicator from '@/components/OfflineIndicator';
 
 type Severity = 'high' | 'medium' | 'low';
 
@@ -93,20 +96,18 @@ interface HealthStats {
   healthyPercentage: number;
   avgTemperature: number;
   vaccinatedPercentage: number;
+  isWeb?: boolean;
 }
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+// Global notification handler is now in _layout.tsx
 
 // API Configuration
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:5000/api';
+
+// Weather API Configuration
+const WEATHER_API_KEY = "333c397bca044d41a41203942250412";
+const WEATHER_API_URL = 'https://api.weatherapi.com/v1';
+const LOCATION = 'Bhopal, MP';
 
 export default function HealthScreen() {
   const { t } = useLanguage();
@@ -143,6 +144,82 @@ export default function HealthScreen() {
         return;
       }
 
+      // Check if offline - use cached data
+      if (!offlineService.isConnected()) {
+        console.log('📴 Offline - loading cached vaccinations');
+        const cached = await offlineService.getCachedVaccinations();
+        if (cached && cached.length > 0) {
+          const now = new Date();
+          const nextWeek = new Date();
+          nextWeek.setDate(now.getDate() + 7);
+          now.setHours(0, 0, 0, 0);
+          nextWeek.setHours(23, 59, 59, 999);
+          
+          const getEmoji = (species: string): string => {
+            const emojis: Record<string, string> = {
+              'poultry': '🐔',
+              'cattle': '🐄',
+              'swine': '🐷',
+              'sheep': '🐑',
+              'goat': '🐐',
+              'chicken': '🐔',
+              'cow': '🐄',
+              'pig': '🐷',
+              'default': '🐾'
+            };
+            return emojis[species?.toLowerCase()] || emojis.default;
+          };
+          
+          const upcoming = cached.filter((v: any) => {
+            const dateStr = v.scheduled_date?.split('T')[0];
+            if (!dateStr) return false;
+            const vaccineDate = new Date(dateStr);
+            vaccineDate.setHours(0, 0, 0, 0);
+            return vaccineDate >= now && vaccineDate <= nextWeek && v.status !== 'done';
+          }).map((v: any) => {
+            const dateStr = v.scheduled_date?.split('T')[0] || v.scheduled_date;
+            const vaccineDate = new Date(dateStr);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            let dateDisplay: string;
+            if (vaccineDate.getTime() === today.getTime()) {
+              dateDisplay = 'Today';
+            } else if (vaccineDate.getTime() === tomorrow.getTime()) {
+              dateDisplay = 'Tomorrow';
+            } else {
+              dateDisplay = vaccineDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+              });
+            }
+            
+            const isUrgent = vaccineDate.getTime() === today.getTime() ||
+              vaccineDate.getTime() === tomorrow.getTime();
+            
+            const species = v.species || v.animal_type || 'Unknown';
+            
+            return {
+              id: v.id,
+              animal: `${species.charAt(0).toUpperCase() + species.slice(1)}`,
+              vaccine: v.vaccine_name || '',
+              date: dateDisplay,
+              urgent: isUrgent,
+              icon: getEmoji(species),
+              scheduled_date: v.scheduled_date || dateStr,
+              species: species,
+              notes: v.notes || '',
+              isAuto: v.schedule_type === 'auto'
+            } as FormattedVaccination;
+          });
+          
+          setUpcomingVaccinations(upcoming);
+          return;
+        }
+      }
+
       console.log('📡 Making API call to:', `${API_URL}/vaccinations`);
       const response = await fetch(`${API_URL}/vaccinations`, {
         method: 'GET',
@@ -155,6 +232,80 @@ export default function HealthScreen() {
       console.log('📊 Response status:', response.status);
 
       if (!response.ok) {
+        // Try cached data on error
+        const cached = await offlineService.getCachedVaccinations();
+        if (cached && cached.length > 0) {
+          console.log('📦 Using cached vaccinations due to error');
+          const now = new Date();
+          const nextWeek = new Date();
+          nextWeek.setDate(now.getDate() + 7);
+          now.setHours(0, 0, 0, 0);
+          nextWeek.setHours(23, 59, 59, 999);
+          
+          const getEmoji = (species: string): string => {
+            const emojis: Record<string, string> = {
+              'poultry': '🐔',
+              'cattle': '🐄',
+              'swine': '🐷',
+              'sheep': '🐑',
+              'goat': '🐐',
+              'chicken': '🐔',
+              'cow': '🐄',
+              'pig': '🐷',
+              'default': '🐾'
+            };
+            return emojis[species?.toLowerCase()] || emojis.default;
+          };
+          
+          const upcoming = cached.filter((v: any) => {
+            const dateStr = v.scheduled_date?.split('T')[0];
+            if (!dateStr) return false;
+            const vaccineDate = new Date(dateStr);
+            vaccineDate.setHours(0, 0, 0, 0);
+            return vaccineDate >= now && vaccineDate <= nextWeek && v.status !== 'done';
+          }).map((v: any) => {
+            const dateStr = v.scheduled_date?.split('T')[0] || v.scheduled_date;
+            const vaccineDate = new Date(dateStr);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            let dateDisplay: string;
+            if (vaccineDate.getTime() === today.getTime()) {
+              dateDisplay = 'Today';
+            } else if (vaccineDate.getTime() === tomorrow.getTime()) {
+              dateDisplay = 'Tomorrow';
+            } else {
+              dateDisplay = vaccineDate.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric'
+              });
+            }
+            
+            const isUrgent = vaccineDate.getTime() === today.getTime() ||
+              vaccineDate.getTime() === tomorrow.getTime();
+            
+            const species = v.species || v.animal_type || 'Unknown';
+            
+            return {
+              id: v.id,
+              animal: `${species.charAt(0).toUpperCase() + species.slice(1)}`,
+              vaccine: v.vaccine_name || '',
+              date: dateDisplay,
+              urgent: isUrgent,
+              icon: getEmoji(species),
+              scheduled_date: v.scheduled_date || dateStr,
+              species: species,
+              notes: v.notes || '',
+              isAuto: v.schedule_type === 'auto'
+            } as FormattedVaccination;
+          });
+          
+          setUpcomingVaccinations(upcoming);
+          return;
+        }
+        
         const errorText = await response.text();
         console.error('❌ API Error:', errorText);
         throw new Error(`Failed to fetch: ${response.status} - ${errorText}`);
@@ -271,6 +422,9 @@ export default function HealthScreen() {
 
         console.log('🎯 Formatted vaccinations:', filteredFormattedVaccinations);
         setUpcomingVaccinations(filteredFormattedVaccinations);
+        
+        // Cache vaccinations for offline use
+        await offlineService.cacheVaccinations(result.data);
 
         // Calculate next vaccination date (5 days from the latest upcoming vaccination)
         if (filteredFormattedVaccinations.length > 0) {
@@ -313,80 +467,48 @@ export default function HealthScreen() {
     }
   };
 
-  // Schedule notifications for vaccinations
+  // Schedule notifications for vaccinations using notification service
   const scheduleVaccinationNotifications = async (vaccinations: FormattedVaccination[]): Promise<void> => {
     try {
-      // Request notification permissions
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('Notification permission not granted');
-        return;
-      }
-
-      // Cancel all existing notifications
-      await Notifications.cancelAllScheduledNotificationsAsync();
-
-      // Schedule new notifications
       for (const vaccination of vaccinations) {
         try {
           const vaccineDate = new Date(vaccination.scheduled_date);
-
-          // Schedule notification 5 minutes before vaccination time (set to 9 AM for demo)
-          const notificationTime = new Date(vaccineDate);
-          notificationTime.setHours(9, 55, 0, 0); // 9:55 AM on the day of vaccination
-
-          // Only schedule if notification time is in the future
-          if (notificationTime > new Date()) {
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: '⏰ Vaccination Reminder',
-                body: `Time to vaccinate ${vaccination.species} with ${vaccination.vaccine}`,
-                data: {
-                  vaccinationId: vaccination.id,
-                  type: 'vaccination_reminder'
-                },
-                sound: 'default',
-                priority: Notifications.AndroidNotificationPriority.HIGH,
-              },
-              trigger: {
-                type: "date",
-                date: notificationTime,
-                repeats: false,
-              } as Notifications.DateTriggerInput,
-            });
-            console.log(`⏰ Scheduled notification for ${vaccination.vaccine} at ${notificationTime}`);
-          }
-
-          // Also schedule a daily reminder 3 days before
-          const threeDaysBefore = new Date(vaccineDate);
-          threeDaysBefore.setDate(threeDaysBefore.getDate() - 3);
-          threeDaysBefore.setHours(9, 0, 0, 0); // 9 AM
-
-          if (threeDaysBefore > new Date()) {
-            await Notifications.scheduleNotificationAsync({
-              content: {
-                title: '📅 Upcoming Vaccination',
-                body: `Vaccination for ${vaccination.species} in 3 days: ${vaccination.vaccine}`,
-                data: {
-                  vaccinationId: vaccination.id,
-                  type: 'upcoming_vaccination'
-                },
-                sound: 'default',
-              },
-              trigger: {
-                type: 'date',
-                date: threeDaysBefore,
-                repeats: false,
-              } as Notifications.DateTriggerInput,
-            });
-            console.log(`📅 Scheduled 3-day reminder for ${vaccination.vaccine}`);
-          }
+          await notificationService.scheduleVaccinationReminder(
+            vaccination.id.toString(),
+            vaccination.animal || vaccination.species,
+            vaccination.vaccine,
+            vaccineDate,
+            24 // 24 hours before
+          );
         } catch (error) {
           console.error(`Error scheduling notification for vaccination ${vaccination.id}:`, error);
         }
       }
     } catch (error) {
-      console.error('❌ Error scheduling notifications:', error);
+      console.error('❌ Error scheduling vaccination notifications:', error);
+    }
+  };
+
+
+  // Schedule notifications for checkups using notification service
+  const scheduleCheckupNotifications = async (checkups: FormattedCheckup[]): Promise<void> => {
+    try {
+      for (const checkup of checkups) {
+        try {
+          const checkupDate = new Date(checkup.scheduled_date);
+          await notificationService.scheduleCheckupReminder(
+            checkup.id.toString(),
+            checkup.animal_name,
+            checkup.type,
+            checkupDate,
+            1 // 1 hour before
+          );
+        } catch (error) {
+          console.error(`Error scheduling notification for checkup ${checkup.id}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('❌ Error scheduling checkup notifications:', error);
     }
   };
 
@@ -395,11 +517,109 @@ export default function HealthScreen() {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) return;
 
+      // Check if offline - use cached data
+      if (!offlineService.isConnected()) {
+        console.log('📴 Offline - loading cached checkups');
+        const cached = await offlineService.getCachedCheckups();
+        if (cached && cached.length > 0) {
+          const now = new Date();
+          const nextWeek = new Date();
+          nextWeek.setDate(now.getDate() + 7);
+          now.setHours(0, 0, 0, 0);
+          nextWeek.setHours(23, 59, 59, 999);
+          
+          const upcoming = cached.filter((c: any) => {
+            const dateStr = c.scheduled_date?.split('T')[0];
+            if (!dateStr) return false;
+            const checkupDate = new Date(dateStr);
+            checkupDate.setHours(0, 0, 0, 0);
+            return checkupDate >= now && checkupDate <= nextWeek && c.status !== 'done';
+          }).map((c: any) => {
+            const date = new Date(c.scheduled_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            let dateDisplay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            if (date.getTime() === today.getTime()) dateDisplay = 'Today';
+            else if (date.getTime() === tomorrow.getTime()) dateDisplay = 'Tomorrow';
+            
+            const isUrgent = date.getTime() === today.getTime() || date.getTime() === tomorrow.getTime();
+            
+            return {
+              id: c.id,
+              animal_name: c.animal_name || 'Unknown',
+              type: c.administration || c.type || 'Routine',
+              date: dateDisplay,
+              urgent: isUrgent,
+              icon: c.species === 'pig' ? '🐷' : '🐔',
+              scheduled_date: c.scheduled_date,
+              species: c.species || 'Unknown',
+              notes: c.notes || '',
+              isAuto: c.schedule_type === 'auto'
+            } as FormattedCheckup;
+          });
+          
+          setUpcomingCheckups(upcoming);
+          return;
+        }
+      }
+
       const response = await fetch(`${API_URL}/checkups`, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
-      if (!response.ok) throw new Error('Failed to fetch checkups');
+      if (!response.ok) {
+        // Try cached data on error
+        const cached = await offlineService.getCachedCheckups();
+        if (cached && cached.length > 0) {
+          console.log('📦 Using cached checkups due to error');
+          const now = new Date();
+          const nextWeek = new Date();
+          nextWeek.setDate(now.getDate() + 7);
+          now.setHours(0, 0, 0, 0);
+          nextWeek.setHours(23, 59, 59, 999);
+          
+          const upcoming = cached.filter((c: any) => {
+            const dateStr = c.scheduled_date?.split('T')[0];
+            if (!dateStr) return false;
+            const checkupDate = new Date(dateStr);
+            checkupDate.setHours(0, 0, 0, 0);
+            return checkupDate >= now && checkupDate <= nextWeek && c.status !== 'done';
+          }).map((c: any) => {
+            const date = new Date(c.scheduled_date);
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            
+            let dateDisplay = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            if (date.getTime() === today.getTime()) dateDisplay = 'Today';
+            else if (date.getTime() === tomorrow.getTime()) dateDisplay = 'Tomorrow';
+            
+            const isUrgent = date.getTime() === today.getTime() || date.getTime() === tomorrow.getTime();
+            
+            return {
+              id: c.id,
+              animal_name: c.animal_name || 'Unknown',
+              type: c.administration || c.type || 'Routine',
+              date: dateDisplay,
+              urgent: isUrgent,
+              icon: c.species === 'pig' ? '🐷' : '🐔',
+              scheduled_date: c.scheduled_date,
+              species: c.species || 'Unknown',
+              notes: c.notes || '',
+              isAuto: c.schedule_type === 'auto'
+            } as FormattedCheckup;
+          });
+          
+          setUpcomingCheckups(upcoming);
+          return;
+        }
+        
+        throw new Error('Failed to fetch checkups');
+      }
 
       const result = await response.json();
 
@@ -445,6 +665,9 @@ export default function HealthScreen() {
           });
 
         setUpcomingCheckups(formattedCheckups);
+        
+        // Cache checkups for offline use
+        await offlineService.cacheCheckups(result.data);
 
         // Calculate next checkup date (7 days from the latest checkup or from now)
         if (formattedCheckups.length > 0) {
@@ -459,9 +682,38 @@ export default function HealthScreen() {
           nextDate.setDate(nextDate.getDate() + 7);
           setNextCheckupDate(nextDate);
         }
+
+        scheduleCheckupNotifications(formattedCheckups);
       }
     } catch (error) {
       console.error('Error fetching checkups:', error);
+    }
+  };
+
+  // Fetch weather data for dynamic temperature
+  const fetchWeatherData = async (): Promise<void> => {
+    try {
+      const response = await fetch(
+        `${WEATHER_API_URL}/forecast.json?key=${WEATHER_API_KEY}&q=${encodeURIComponent(LOCATION)}&days=1&aqi=no`
+      );
+
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data && data.current) {
+          setHealthStats(prev => ({
+            ...prev,
+            avgTemperature: data.current.temp_c
+          }));
+        }
+      }
+    } catch (error) {
+      console.log('Error fetching weather data, using fallback:', error);
+      // Fallback mock data
+      setHealthStats(prev => ({
+        ...prev,
+        avgTemperature: 22.4
+      }));
     }
   };
 
@@ -470,6 +722,7 @@ export default function HealthScreen() {
     setRefreshing(true);
     fetchVaccinations();
     fetchCheckups();
+    fetchWeatherData();
   };
 
   // Load data on component focus - FIXED for auto-refresh
@@ -477,23 +730,25 @@ export default function HealthScreen() {
     useCallback(() => {
       fetchVaccinations();
       fetchCheckups();
+      fetchWeatherData();
     }, [])
   );
 
   // Setup notification listeners once
-  useEffect(() => {
-    // Listen for notification interactions
-    const subscription = Notifications.addNotificationResponseReceivedListener(response => {
-      const data = response.notification.request.content.data;
-      if (data.type === 'vaccination_reminder') {
-        router.push(`/vaccination/${data.vaccinationId}` as any);
-      }
-    });
-
-    return () => {
-      subscription.remove();
-    };
-  }, []);
+  // Note: Notification response handling can be added using expo-notifications if needed
+  // useEffect(() => {
+  //   const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+  //     const data = response.notification.request.content.data;
+  //     if (data.type === 'vaccination_reminder') {
+  //       router.push(`/vaccination/${data.vaccinationId}` as any);
+  //     } else if (data.type === 'checkup_reminder') {
+  //       router.push(`/checkup/${data.checkupId}` as any);
+  //     }
+  //   });
+  //   return () => {
+  //     subscription.remove();
+  //   };
+  // }, []);
 
   const getSeverityColors = (severity: Severity) => {
     switch (severity) {
@@ -505,10 +760,12 @@ export default function HealthScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
+    <View style={{ flex: 1 }}>
+      <OfflineIndicator />
+      <ScrollView
+        style={styles.container}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
         <RefreshControl
           refreshing={refreshing}
           onRefresh={onRefresh}
@@ -641,10 +898,7 @@ export default function HealthScreen() {
             {upcomingVaccinations.map((vaccination, index) => (
               <TouchableOpacity
                 key={vaccination.id}
-                style={[
-                  styles.vaccinationItem,
-                  index === upcomingVaccinations.length - 1 && styles.lastItem
-                ]}
+                style={styles.vaccinationItem}
                 activeOpacity={0.7}
                 onPress={() => router.push(`/vaccination/${vaccination.id}` as any)}
               >
@@ -747,10 +1001,7 @@ export default function HealthScreen() {
           upcomingCheckups.map((checkup, index) => (
             <TouchableOpacity
               key={checkup.id}
-              style={[
-                styles.vaccinationItem,
-                index === upcomingCheckups.length - 1 && styles.lastItem
-              ]}
+              style={styles.vaccinationItem}
               onPress={() => router.push(`/checkup/${checkup.id}` as any)}
             >
               <View style={styles.vaccinationLeft}>
@@ -807,10 +1058,7 @@ export default function HealthScreen() {
           return (
             <TouchableOpacity
               key={index}
-              style={[
-                styles.alertItem,
-                index === healthAlerts.length - 1 && styles.lastItem
-              ]}
+              style={styles.alertItem}
               activeOpacity={0.7}
             >
               <View style={styles.alertLeft}>
@@ -896,14 +1144,15 @@ export default function HealthScreen() {
         }}
         type="checkup"
       />
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: '#F3F4F6',
   },
   header: {
     paddingTop: 60,
@@ -981,16 +1230,8 @@ const styles = StyleSheet.create({
     marginLeft: 2,
   },
   section: {
-    backgroundColor: '#FFFFFF',
     marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    marginTop: 24,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1003,22 +1244,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   sectionIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: '#DBEAFE',
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 10,
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#1F2937',
   },
   seeAllText: {
-    fontSize: 14,
-    color: '#3B82F6',
+    fontSize: 13,
+    color: '#6B7280',
     fontWeight: '600',
   },
   alertCount: {
@@ -1037,12 +1283,20 @@ const styles = StyleSheet.create({
   vaccinationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3B82F6',
   },
   lastItem: {
-    borderBottomWidth: 0,
+    marginBottom: 0,
   },
   vaccinationLeft: {
     flexDirection: 'row',
@@ -1050,16 +1304,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   animalEmoji: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: '#EFF6FF',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   emojiText: {
-    fontSize: 24,
+    fontSize: 28,
   },
   vaccinationContent: {
     flex: 1,
@@ -1067,50 +1321,56 @@ const styles = StyleSheet.create({
   titleRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginBottom: 2,
+    gap: 8,
+    marginBottom: 4,
   },
   autoBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 100,
     backgroundColor: '#EFF6FF',
     borderWidth: 1,
-    borderColor: '#3B82F6',
+    borderColor: '#BFDBFE',
   },
   autoBadgeText: {
     fontSize: 9,
-    fontWeight: '700',
-    color: '#3B82F6',
+    fontWeight: '800',
+    color: '#2563EB',
     textTransform: 'uppercase',
-    letterSpacing: 0.3,
+    letterSpacing: 0.5,
   },
   vaccinationAnimal: {
-    fontSize: 15,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '800',
     color: '#111827',
   },
   vaccinationVaccine: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginBottom: 4,
+    fontSize: 14,
+    color: '#4B5563',
+    marginBottom: 6,
+    fontWeight: '500',
   },
   dateRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 6,
   },
   vaccinationDate: {
-    fontSize: 12,
+    fontSize: 13,
     color: '#6B7280',
-    fontWeight: '500',
+    fontWeight: '600',
   },
   urgentDate: {
     color: '#DC2626',
     fontWeight: '700',
+    backgroundColor: '#FEE2E2',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+    overflow: 'hidden',
   },
   urgentBadge: {
     paddingHorizontal: 10,
@@ -1125,21 +1385,32 @@ const styles = StyleSheet.create({
   },
   checkButton: {
     padding: 8,
+    marginLeft: 8,
   },
   checkCircle: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: '#D1FAE5',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F0FDF4',
     justifyContent: 'center',
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#10B981',
   },
   alertItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#EF4444',
   },
   alertLeft: {
     flexDirection: 'row',
@@ -1147,137 +1418,160 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   alertIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: 16,
   },
   alertEmoji: {
-    fontSize: 24,
+    fontSize: 26,
   },
   alertContent: {
     flex: 1,
   },
   alertType: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: '#111827',
-    marginBottom: 3,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#1F2937',
+    marginBottom: 4,
   },
   alertLocation: {
     fontSize: 13,
     color: '#6B7280',
     marginBottom: 2,
+    fontWeight: '500',
   },
   alertTime: {
     fontSize: 12,
     color: '#9CA3AF',
+    fontWeight: '500',
   },
   severityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     borderWidth: 1,
     marginRight: 8,
   },
   severityText: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   quickActions: {
     flexDirection: 'row',
     paddingHorizontal: 20,
-    marginTop: 20,
+    marginTop: 12,
+    marginBottom: 30,
     gap: 12,
   },
   actionButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
+    shadowColor: '#3B82F6',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
+    shadowOpacity: 0.2,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 6,
   },
   actionGradient: {
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
+    paddingVertical: 16,
     paddingHorizontal: 4,
-    gap: 6,
+    gap: 8,
   },
   actionText: {
     color: '#FFFFFF',
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '700',
     textAlign: 'center',
   },
   bottomPadding: {
-    height: 30,
+    height: 40,
   },
   loadingContainer: {
     alignItems: 'center',
-    paddingVertical: 20,
+    paddingVertical: 30,
   },
   loadingText: {
-    marginTop: 8,
+    marginTop: 12,
     color: '#6B7280',
     fontSize: 14,
+    fontWeight: '500',
   },
   emptyState: {
     alignItems: 'center',
-    paddingVertical: 30,
+    paddingVertical: 40,
     paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
   },
   emptyStateText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#6B7280',
-    marginTop: 12,
-    marginBottom: 4,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#374151',
+    marginTop: 16,
+    marginBottom: 6,
   },
   emptyStateSubtext: {
     fontSize: 14,
     color: '#9CA3AF',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
+    lineHeight: 20,
   },
   emptyStateButton: {
     backgroundColor: '#3B82F6',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
   },
   emptyStateButtonText: {
     color: '#FFFFFF',
-    fontWeight: '600',
-    fontSize: 14,
+    fontWeight: '700',
+    fontSize: 15,
   },
   resultCount: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 12,
-    fontStyle: 'italic',
+    fontSize: 13,
+    color: '#9CA3AF',
+    marginBottom: 16,
+    marginLeft: 4,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: 4,
   },
   autoScheduleButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    borderColor: '#3B82F6',
-    backgroundColor: '#EFF6FF',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 100,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   autoScheduleText: {
     fontSize: 12,
@@ -1286,8 +1580,8 @@ const styles = StyleSheet.create({
   },
   healthLabel: {
     fontSize: 11,
-    fontWeight: '600',
-    color: '#10B981',
+    fontWeight: '700',
+    color: '#059669',
     marginTop: 2,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
